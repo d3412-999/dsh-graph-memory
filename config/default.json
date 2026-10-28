@@ -146,9 +146,19 @@
   "panel": {
     "enabled": true,
     "port": 9629,
-    "host": "127.0.0.1"
+    "host": "127.0.0.1",
+    "graphMaxNodes": 140
   },
   "logging": {
     "level": "info"
+  },
+  "pricing": {
+    "model": "deepseek-flash",
+    "currency": "CNY",
+    "inputCacheMissPerM": 2.0,
+    "inputCacheHitPerM": 0.04,
+    "outputPerM": 8.0,
+    "tier": "peak",
+    "note": "deepseek-flash 高峰价（北京时间周一至周五 9:00-12:00 / 14:00-18:00）；其余时段半价"
   }
 }

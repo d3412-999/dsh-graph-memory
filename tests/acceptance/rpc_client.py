@@ -35,6 +35,22 @@ WORKSPACE_TMP = os.path.join(REPO_ROOT, ".tmp")
 DEFAULT_REQUEST_TIMEOUT = 30.0
 START_TIMEOUT = 45.0
 
+# 伪时钟固定起点：验收用例只从「一个确定的本地时刻」向前推进，不继承真实 wall clock。
+# 否则用例在 21:00 之后启动时，D1（200 轮 × 60s ≈ 3.3h）会跨过午夜触发跨天合并，
+# 历史摘要计入 history 容器 → 稳态总量阶跃，得到与机器启动时间相关的假失败。
+DEFAULT_CLOCK_BASE = time.mktime((2026, 3, 15, 9, 0, 0, 0, 0, -1))
+
+
+def clock_base_ts() -> float:
+    """验收统一时钟起点（可用 GM_ACC_CLOCK_BASE 覆盖为 epoch 秒）。"""
+    raw = os.environ.get("GM_ACC_CLOCK_BASE")
+    if raw:
+        try:
+            return float(raw)
+        except ValueError:
+            pass
+    return DEFAULT_CLOCK_BASE
+
 # 缺少这些模块时 server 无法启动 → 验收侧 skip（产品仍在并行实现）
 _REQUIRED_SIDECAR_MODULES = (
     "base.py",
@@ -167,9 +183,11 @@ class SidecarClient:
         workdir: Optional[str] = None,
         name: str = "",
         keep_temp: Optional[bool] = None,
+        clock_base: Optional[float] = None,
     ) -> None:
         self.name = name or "sidecar"
         self._owns_workdir = workdir is None
+        self.clock_base = clock_base_ts() if clock_base is None else float(clock_base)
         self.workdir = workdir or make_temp_dir()
         self.user_home = os.path.join(self.workdir, "user-home")
         self.workspace_home = os.path.join(self.workdir, "workspace-home")
@@ -272,7 +290,16 @@ class SidecarClient:
         self._stderr_thread = threading.Thread(target=self._read_stderr, name=f"{self.name}-stderr", daemon=True)
         self._stderr_thread.start()
         self._wait_ready(timeout=timeout)
+        self._pin_clock()
         return self
+
+    def _pin_clock(self) -> None:
+        """把 sidecar 伪时钟钉到统一起点，保证任意时刻运行结果一致。"""
+        try:
+            self.debug_set_now(ts=self.clock_base)
+        except (RpcError, MethodMissing):
+            # 老版本 sidecar 无 debug_set_now：退回真实时钟（用例可能受跨天影响）
+            pass
 
     def _wait_ready(self, *, timeout: float) -> None:
         deadline = time.time() + timeout

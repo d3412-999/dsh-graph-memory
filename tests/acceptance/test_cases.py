@@ -368,7 +368,11 @@ class TestD2_LongTermConstantBudget(AcceptanceBase):
         fx = self.spawn()
         fx.debug_seed_entities(200, prefix=FIXED_MEMORY_PREFIX)
         daily_totals: list[dict] = []
+        base = float(fx.client.clock_base)
         for day in range(1, self.DAYS + 1):
+            # 每天对齐到同一本地时刻（base + (day-1)d）再跑 50 轮，避免按天 advance(86400)
+            # 累积「50 轮 × 60s」的时间漂移，最终在批次中间跨午夜，测到当天零轮的空 day_context。
+            fx.debug_set_now(ts=base + (day - 1) * 86400.0)
             for turn in range(self.TURNS_PER_DAY):
                 if turn == 0:
                     text = f"今天把 pnpm 依赖管理配置更新到第 {day} 版，构建脚本版本是 v{day}。"
@@ -388,8 +392,6 @@ class TestD2_LongTermConstantBudget(AcceptanceBase):
                     "history_tokens": int(workspace_stats.get("history_tokens") or 0),
                 }
             )
-            if day < self.DAYS:
-                fx.advance(86400)
 
         totals = [item["total"] for item in daily_totals]
         self.assertLessEqual(max(totals), injection_model.TOTAL_HARD, f"D2 注入总量超过 3000: {max(totals)}")

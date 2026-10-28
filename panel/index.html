@@ -38,11 +38,22 @@
         <span class="budget-total-unit">/ <span id="budget-cap">3000</span> tokens</span>
         <span class="budget-pct" id="budget-pct">0%</span>
       </div>
-      <p class="budget-note">
+      <p class="budget-note" id="budget-note">
         注入总量硬顶 <strong>3000 tokens</strong>，不随使用时长 / 轮数 / 图谱规模增长。
         <span class="en">（CONTRACT §2.2 · R1）</span>
       </p>
     </div>
+    <div class="budget-control">
+      <label class="budget-control-label" for="budget-slider">注入上限</label>
+      <input type="range" id="budget-slider" min="0" max="100" step="1" value="0"
+             aria-label="注入上限滑杆（对数刻度 3000 至 2000000）" />
+      <input type="number" id="budget-input" min="3000" max="2000000" step="500" value="3000"
+             aria-label="注入上限（token）" inputmode="numeric" />
+      <span class="budget-control-unit">tokens</span>
+      <span class="budget-control-hint" id="budget-hint">3,000 – 2,000,000 tokens</span>
+      <button type="button" id="budget-apply" class="btn primary">应用</button>
+    </div>
+    <p class="budget-cost" id="budget-cost">正在读取单价…</p>
     <div class="stack-bar is-empty" id="budget-bar" role="img" aria-label="最近一次注入的 token 占用分布"></div>
     <ul class="budget-legend" id="budget-legend"></ul>
     <div class="scope-stats" id="scope-stats"></div>

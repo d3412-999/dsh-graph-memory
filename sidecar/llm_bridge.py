@@ -156,6 +156,11 @@ class LlmBridge:
             except Exception:  # noqa: BLE001
                 verdict = _FallbackRules().judge("", "", prompt)
             return json.dumps(verdict, ensure_ascii=False)
+        if purpose.startswith("rewrite"):
+            # 描述改写属于生成任务，没有确定性规则可仿写：返回空串，交给 service 的
+            # 规则兜底（昵称/否定/替换）。绝不能落到 summarize —— 那会把提示词原文
+            # 当成新描述写进图谱（提示词泄漏）。
+            return ""
         return rules.summarize(prompt, 360)
 
 

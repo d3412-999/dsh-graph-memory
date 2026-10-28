@@ -35,6 +35,7 @@ from base import (
     truncate_to_tokens,
     write_json_atomic,
 )
+import budget as budget_mod
 
 DAYS_DIR = "days"
 DAY_SUMMARY_FILE = "day_summary.json"
@@ -193,6 +194,14 @@ class DayKeeper:
     # ------------------------------------------------------------------ #
     # 路径 / 状态持久化
     # ------------------------------------------------------------------ #
+    def _caps(self) -> dict[str, int]:
+        """注入容器上限（随可调预算等比缩放）。"""
+        return budget_mod.injection_caps(self.config)
+
+    def _day_caps(self) -> dict[str, int]:
+        """当天缓冲/摘要水位（随可调预算等比缩放）。"""
+        return budget_mod.day_caps(self.config)
+
     def _turns_path(self, date: str) -> str:
         return os.path.join(self.days_dir, date, "turns.jsonl")
 
@@ -429,7 +438,7 @@ class DayKeeper:
             return {"compressed": False, "summary_tokens": 0, "reason": "no_turns", "date": date}
         raw = "\n".join(str(turn.get("text") or "") for turn in turns)
         raw_tokens = estimate_tokens(raw)
-        raw_limit = int(cfg_get(self.config, "day.rawTokenLimit", 512))
+        raw_limit = self._day_caps()["rawTokenLimit"]
         if raw_tokens <= raw_limit:
             return {
                 "compressed": False,
@@ -459,7 +468,7 @@ class DayKeeper:
                 "date": date,
                 "turns_since": turns_since,
             }
-        summary_max = int(cfg_get(self.config, "day.summaryMaxTokens", 360))
+        summary_max = self._day_caps()["summaryMaxTokens"]
         keep_recent = int(cfg_get(self.config, "day.keepRecentTurns", 2))
         previous = ""
         record = self._read_day_summary()
@@ -542,7 +551,7 @@ class DayKeeper:
     # 跨天 rollover / 历史滚动摘要（R8）
     # ------------------------------------------------------------------ #
     async def _ensure_day_summary(self, date: str, turns: list[dict[str, Any]], now: float) -> str:
-        summary_max = int(cfg_get(self.config, "day.summaryMaxTokens", 360))
+        summary_max = self._day_caps()["summaryMaxTokens"]
         record = self._read_day_summary()
         if isinstance(record, dict) and str(record.get("date") or "") == date:
             existing = record.get("text")
@@ -585,7 +594,7 @@ class DayKeeper:
         return _simple_merge_history(old_history, new_summary, max_tokens)
 
     async def _do_rollover(self, old_date: str, target_date: str, now: float) -> dict[str, Any]:
-        history_max = int(cfg_get(self.config, "injection.historyMaxTokens", DEFAULT_HISTORY_MAX))
+        history_max = self._caps()["historyMaxTokens"]
         old_turns = self._turns(old_date)
         day_summary = await self._ensure_day_summary(old_date, old_turns, now)
         old_history = self._read_history_text()
@@ -660,8 +669,8 @@ class DayKeeper:
         self, date: str, turns: list[dict[str, Any]], raw_tokens: int
     ) -> tuple[str, bool]:
         """返回 (day_text, compressed)。≤512 token 给原文，否则给当日摘要 + 最近原文保底。"""
-        raw_limit = int(cfg_get(self.config, "day.rawTokenLimit", 512))
-        day_cap = int(cfg_get(self.config, "injection.dayTextMaxTokens", DEFAULT_DAY_TEXT_MAX))
+        raw_limit = self._day_caps()["rawTokenLimit"]
+        day_cap = self._caps()["dayTextMaxTokens"]
         raw = "\n".join(str(turn.get("text") or "") for turn in turns)
         if raw_tokens <= raw_limit:
             return truncate_to_tokens(raw, day_cap), False
@@ -670,7 +679,7 @@ class DayKeeper:
             summary_text = record.get("text")
             summary_text = str(summary_text).strip() if isinstance(summary_text, str) else ""
             if summary_text:
-                summary_max = int(cfg_get(self.config, "day.summaryMaxTokens", 360))
+                summary_max = self._day_caps()["summaryMaxTokens"]
                 summary_text = truncate_to_tokens(summary_text, summary_max)
                 keep_recent = int(cfg_get(self.config, "day.keepRecentTurns", 2))
                 recent = record.get("recent")
@@ -782,7 +791,7 @@ class DayKeeper:
 
     def _detail_text(self, query: str, date: str, turns: list[dict[str, Any]], day_text: str) -> str:
         top_k = int(cfg_get(self.config, "day.detailTopK", 3))
-        detail_cap = int(cfg_get(self.config, "injection.detailMaxTokens", DEFAULT_DETAIL_MAX))
+        detail_cap = self._caps()["detailMaxTokens"]
         chosen: list[str] = []
         candidates = self._graph_chunks_for_day(query, date) if query else []
         for text in candidates:
@@ -812,12 +821,12 @@ class DayKeeper:
         raw = "\n".join(str(turn.get("text") or "") for turn in turns)
         raw_tokens = estimate_tokens(raw)
         day_text, compressed = self._day_text_for(date, turns, raw_tokens)
-        day_text = truncate_to_tokens(day_text, int(cfg_get(self.config, "injection.dayTextMaxTokens", DEFAULT_DAY_TEXT_MAX)))
+        day_text = truncate_to_tokens(day_text, self._caps()["dayTextMaxTokens"])
         detail_text = self._detail_text(query, date, turns, day_text)
         history_text = truncate_to_tokens(
-            self._read_history_text(), int(cfg_get(self.config, "injection.historyMaxTokens", DEFAULT_HISTORY_MAX))
+            self._read_history_text(), self._caps()["historyMaxTokens"]
         )
-        day_max = int(cfg_get(self.config, "injection.dayMaxTokens", DEFAULT_DAY_MAX))
+        day_max = self._caps()["dayMaxTokens"]
         tokens = {
             "day": estimate_tokens(day_text),
             "detail": estimate_tokens(detail_text),

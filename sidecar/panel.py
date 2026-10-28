@@ -82,6 +82,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._json(self._call(self.panel._journal(scope, target)))
             elif path == "/api/injection":
                 self._json(self._call(self.panel._injection()))
+            elif path == "/api/budget":
+                self._json(self._call(self.panel.service.budget_state({})))
             elif path == "/api/prune":
                 scope = (query.get("scope") or ["workspace"])[0]
                 self._json(self._call(self.panel._prune(scope)))
@@ -156,8 +158,34 @@ class PanelServer:
         scope = scope if scope in self.service.scopes else "workspace"
         graph = self.service.graphs[scope]
         nodes = graph.list_entities(scope)
-        relations = [dict(rel) for rel in graph.relations.values()]
-        return {"scope": scope, "nodes": nodes, "relations": relations, "counts": graph.stats()}
+        total = len(nodes)
+        # 图谱视图只画得动上百个节点：按权重/新鲜度截断，否则大图谱会把浏览器拖死
+        # （5000 节点 ≈ 2.7MB JSON + 数千 DOM/SVG 元素）。总量仍通过 total/counts 返回。
+        limit = int(self.service.config.get("panel.graphMaxNodes") or 140)
+        if limit > 0 and total > limit:
+            nodes = sorted(
+                nodes,
+                key=lambda node: (
+                    float((node.get("properties") or {}).get("w") or 0.0),
+                    float((node.get("properties") or {}).get("updated_at") or 0.0),
+                ),
+                reverse=True,
+            )[:limit]
+        keep = {str(node.get("id")) for node in nodes}
+        relations = [
+            dict(rel)
+            for rel in graph.relations.values()
+            if str(rel.get("source")) in keep and str(rel.get("target")) in keep
+        ]
+        return {
+            "scope": scope,
+            "nodes": nodes,
+            "relations": relations,
+            "counts": graph.stats(),
+            "total": total,
+            "shown": len(nodes),
+            "truncated": total > len(nodes),
+        }
 
     async def _search(self, query: str, scope: str) -> dict[str, Any]:
         if not query:
@@ -203,6 +231,11 @@ class PanelServer:
             )
         if action == "rollback":
             return await self.service.journal_rollback({"change_id": payload.get("change_id")})
+        if action == "set_budget":
+            # 预算调整：面板滑杆/输入框直接改注入上限（[3000, 2_000_000]，落盘 budget.json）
+            return await self.service.set_budget(
+                {"max_tokens": payload.get("max_tokens", payload.get("value"))}
+            )
         if action == "replay_dead_letter":
             return await self.service.dead_letter_replay({"id": payload.get("id")})
         return {"error": f"unknown action: {action}"}

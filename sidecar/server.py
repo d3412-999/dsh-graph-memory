@@ -341,6 +341,8 @@ class SidecarApp:
             "set_weight": self.service.set_weight,
             "conflicts_sweep": self.service.conflicts_sweep,
             "injection_record": self.service.injection_record,
+            "budget": self.service.budget_state,
+            "set_budget": self.service.set_budget,
             "tokens": self.service.tokens,
             "dead_letter_list": self.service.dead_letter_list,
             "dead_letter_replay": self.service.dead_letter_replay,

@@ -34,9 +34,18 @@ test('deepMerge 深合并且不修改基准默认值', () => {
   assert.equal(DEFAULT_CONFIG.injection.totalHardTokens, 3000)
 })
 
-test('normalizeConfig 强制 totalHardTokens=3000（红线 R1 不可被配置放宽）', () => {
-  const config = normalizeConfig({ injection: { totalHardTokens: 99999 } })
-  assert.equal(config.injection.totalHardTokens, 3000)
+test('normalizeConfig 把 totalHardTokens 夹紧到 [3000, 2000000]（R1 硬顶可调但有界）', () => {
+  // 区间内的值原样保留——这是用户能自己调的部分
+  assert.equal(normalizeConfig({ injection: { totalHardTokens: 99999 } }).injection.totalHardTokens, 99999)
+  assert.equal(normalizeConfig({ injection: { totalHardTokens: 3000 } }).injection.totalHardTokens, 3000)
+  assert.equal(normalizeConfig({ injection: { totalHardTokens: 2000000 } }).injection.totalHardTokens, 2000000)
+  // 越界夹到边界，非法值回落默认 3000：R1 仍然是「恒定上限」而不是「不限」
+  assert.equal(normalizeConfig({ injection: { totalHardTokens: 200 } }).injection.totalHardTokens, 3000)
+  assert.equal(normalizeConfig({ injection: { totalHardTokens: 9e9 } }).injection.totalHardTokens, 2000000)
+  assert.equal(normalizeConfig({ injection: { totalHardTokens: 0 } }).injection.totalHardTokens, 3000)
+  assert.equal(normalizeConfig({ injection: { totalHardTokens: -1 } }).injection.totalHardTokens, 3000)
+  assert.equal(normalizeConfig({ injection: { totalHardTokens: NaN } }).injection.totalHardTokens, 3000)
+  assert.equal(normalizeConfig({ injection: { totalHardTokens: 'abc' } }).injection.totalHardTokens, 3000)
 })
 
 test('resolvePaths 默认落在 ~/.dsh/graph-memory 与 {ws}/.dsh/graph-memory', () => {

@@ -1,7 +1,7 @@
 {
   "name": "dsh-graph-memory",
   "version": "0.1.0",
-  "description": "LightRAG-based lightweight memory for DeepSeek Harness: self-managing write/recall/supersede/compress/forget with a hard 3000-token injection budget.",
+  "description": "LightRAG-based lightweight memory for DeepSeek Harness: self-managing write/recall/supersede/compress/forget with a tunable hard injection budget (3000-2000000 tokens, default 3000).",
   "type": "module",
   "main": "lib/index.js",
   "exports": {

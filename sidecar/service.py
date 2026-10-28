@@ -12,12 +12,14 @@ import copy
 import json
 import math
 import os
+import re
 import time
 from typing import Any, Optional
 
 import noise
 import retrieval
 import supersede
+import budget as budget_mod
 from base import (
     STATUS_ACTIVE,
     STATUS_ARCHIVED,
@@ -75,6 +77,24 @@ def _format_item(item: dict[str, Any]) -> str:
     return f"[#{item.get('id')} | w={float(item.get('w') or 0):.1f} | {updated} 更新{flag}] {item.get('text')}"
 
 
+# 改口语句里的显式替换目标：「换成 yarn」「改用 Podman」「现在用 Cursor」
+_REPLACEMENT_TARGET = re.compile(r"(?:改成|换成|改用|转用|现在用|统一用)\s*([A-Za-z0-9_\-.\u4e00-\u9fff]{1,20})")
+
+
+def _replacement_target(utterance: str) -> str:
+    """从「换成 X / 改用 X」里取出新值；取不到返回空串。"""
+    match = _REPLACEMENT_TARGET.search(utterance or "")
+    if not match:
+        return ""
+    return match.group(1).strip().rstrip("，。；、)）")
+
+
+def _touched_in_turn(node: dict[str, Any], turn_id: str) -> bool:
+    """该节点是否由本轮对话创建/更新（改口只能覆盖「此前」的说法）。"""
+    turns = ((node.get("properties") or {}).get("source_turn_ids") or [])
+    return bool(turn_id) and turn_id in turns
+
+
 class MemoryService:
     def __init__(self, config: Config, *, peer: Optional[Any] = None) -> None:
         self.config = config
@@ -110,6 +130,51 @@ class MemoryService:
                 self.last_injection = state.get("last_injection") or {}
         except Exception:  # noqa: BLE001
             self.last_injection = {}
+        self._restore_budget()
+
+    # ------------------------------------------------------------------ #
+    # 注入预算（可调 [3000, 2_000_000]，默认 3000）
+    # ------------------------------------------------------------------ #
+    def _restore_budget(self) -> None:
+        """面板写入的预算优先于 config，保证重启后仍然生效。"""
+        stored = budget_mod.load_runtime_budget(self.paths["user"])
+        value = budget_mod.clamp_budget(
+            stored if stored is not None else self.config.get("injection.totalHardTokens")
+        )
+        self.config.data.setdefault("injection", {})["totalHardTokens"] = value
+
+    def caps(self) -> dict[str, int]:
+        return budget_mod.injection_caps(self.config)
+
+    def total_budget(self) -> int:
+        return budget_mod.total_budget(self.config)
+
+    def budget_report(self) -> dict[str, Any]:
+        total = self.total_budget()
+        price = budget_mod.pricing(self.config)
+        injected = int(((self.last_injection or {}).get("tokens") or {}).get("total") or 0)
+        return {
+            "max_tokens": total,
+            "min": budget_mod.BUDGET_MIN,
+            "max": budget_mod.BUDGET_MAX,
+            "default": budget_mod.BUDGET_DEFAULT,
+            "caps": self.caps(),
+            "pricing": price,
+            "cost_per_message": budget_mod.cost_per_message(total, price),
+            "cost_last_injection": budget_mod.cost_per_message(injected, price),
+            "last_injection_tokens": injected,
+        }
+
+    async def budget_state(self, params: dict[str, Any]) -> dict[str, Any]:
+        return self.budget_report()
+
+    async def set_budget(self, params: dict[str, Any]) -> dict[str, Any]:
+        raw = params.get("max_tokens", params.get("maxTokens"))
+        value = budget_mod.clamp_budget(raw)
+        self.config.data.setdefault("injection", {})["totalHardTokens"] = value
+        budget_mod.save_runtime_budget(self.paths["user"], value, updated_at=self.now())
+        log("info", "injection budget updated", max_tokens=value, caps=self.caps())
+        return self.budget_report()
 
     # ------------------------------------------------------------------ #
     # 基础设施
@@ -208,7 +273,7 @@ class MemoryService:
             log("warning", "retrieval failed", error=str(exc))
             return {"items": [], "injected_ids": [], "tokens": {"memory": 0}, "top1_sim": 0.0, "high_weight_count": 0}
         budget = params.get("budget") or {}
-        mem_max = int(budget.get("mem_max") or self.config.get("injection.memoryMaxTokens") or 2048)
+        mem_max = int(budget.get("mem_max") or self.caps()["memoryMaxTokens"])
         items: list[dict[str, Any]] = []
         used = 0
         for item in result.get("items") or []:
@@ -365,8 +430,13 @@ class MemoryService:
             # 先做改口判定（同名的新描述也可能是否定式改口），再做同名合并/去重/新建
             neighbors = graph.search_entities(f"{name}\n{description}", scope, top_k=5)
             best_id, best_sim = (neighbors[0][0], neighbors[0][1]) if neighbors else ("", 0.0)
-            if best_id and best_sim >= min_sim:
-                target = graph.get_entity(best_id)
+            # 改口只覆盖「本轮之前」的说法：同一轮里刚建/刚更新的节点不能当旧说法。
+            prior_id, prior_sim = next(
+                ((eid, sim) for eid, sim in neighbors if not _touched_in_turn(graph.get_entity(eid) or {}, turn_id)),
+                ("", 0.0),
+            )
+            if prior_id and prior_sim >= min_sim:
+                target = graph.get_entity(prior_id)
                 if target is not None:
                     verdict = await supersede.judge_supersede(
                         target.get("description", ""), description, cleaned, self.llm
@@ -387,7 +457,7 @@ class MemoryService:
                             scope=scope,
                         )
                         superseded.append(change)
-                        node_ids.append(best_id)
+                        node_ids.append(prior_id)
                         continue
             if best_id and best_sim > dedupe_sim:
                 # >0.95：不新建，只对已有节点 activate（闸门 4）
@@ -460,6 +530,8 @@ class MemoryService:
             node = graph.get_entity(entity_id)
             if node is None:
                 continue
+            if _touched_in_turn(node, turn_id):
+                continue  # 本轮刚写入的节点不是「旧说法」
             status = (node.get("properties") or {}).get("status")
             if status not in (None, "active", "compressed"):
                 continue
@@ -504,13 +576,20 @@ class MemoryService:
         except Exception:  # noqa: BLE001
             candidate = ""
         candidate = candidate.strip().strip('"').strip("'").splitlines()[0].strip() if candidate else ""
+        # 提示词回显防护：模型（或降级路径）把提示词原文当回答时一律丢弃，避免
+        # 「你是记忆改写器…<<<OLD>>>…」被写进图谱描述。
+        if candidate and ("<<<OLD>>>" in candidate or "<<<NEW>>>" in candidate or "记忆改写器" in candidate):
+            candidate = ""
         if candidate and 2 <= len(candidate) <= 200 and candidate != old_description:
             return candidate
-        # 确定性兜底：喜欢→不喜欢 / 不再 X / 旧对象 + 最新说法
+        # 确定性兜底：喜欢→不喜欢 / 不再 X / 明确替换目标 / 旧对象 + 最新说法
         if "不喜欢" in utterance and "喜欢" in old_description and "不喜欢" not in old_description:
             return old_description.replace("喜欢", "不喜欢", 1)
         if "不再" in utterance and "喜欢" in old_description:
             return old_description.replace("喜欢", "不再喜欢", 1)
+        replaced = _replacement_target(utterance)
+        if replaced:
+            return f"{name or old_description}已改用{replaced}"[:200]
         core = name or old_description
         return f"{core}：{utterance}（已改口）"[:200]
 
@@ -724,20 +803,22 @@ class MemoryService:
 
     async def panel_state(self, params: dict[str, Any]) -> dict[str, Any]:
         stats = await self.stats({})
+        caps = self.caps()
         payload: dict[str, Any] = {
             "stats": stats,
             "injection_last": self.last_injection,
+            "budget": self.budget_report(),
             "injection_config": {
-                "total_hard_tokens": int(self.config.get("injection.totalHardTokens") or 3000),
-                "system_max_tokens": int(self.config.get("injection.systemMaxTokens") or 128),
-                "memory_default_tokens": int(self.config.get("injection.memoryDefaultTokens") or 1024),
-                "memory_high_sim_tokens": int(self.config.get("injection.memoryHighSimTokens") or 1536),
-                "memory_boost_tokens": int(self.config.get("injection.memoryBoostTokens") or 1792),
-                "memory_max_tokens": int(self.config.get("injection.memoryMaxTokens") or 2048),
-                "day_max_tokens": int(self.config.get("injection.dayMaxTokens") or 1024),
-                "day_text_max_tokens": int(self.config.get("injection.dayTextMaxTokens") or 512),
-                "detail_max_tokens": int(self.config.get("injection.detailMaxTokens") or 312),
-                "history_max_tokens": int(self.config.get("injection.historyMaxTokens") or 200),
+                "total_hard_tokens": self.total_budget(),
+                "system_max_tokens": caps["systemMaxTokens"],
+                "memory_default_tokens": caps["memoryDefaultTokens"],
+                "memory_high_sim_tokens": caps["memoryHighSimTokens"],
+                "memory_boost_tokens": caps["memoryBoostTokens"],
+                "memory_max_tokens": caps["memoryMaxTokens"],
+                "day_max_tokens": caps["dayMaxTokens"],
+                "day_text_max_tokens": caps["dayTextMaxTokens"],
+                "detail_max_tokens": caps["detailMaxTokens"],
+                "history_max_tokens": caps["historyMaxTokens"],
                 "high_sim_threshold": float(self.config.get("injection.highSimThreshold") or 0.8),
                 "high_weight_threshold": float(self.config.get("injection.highWeightThreshold") or 5),
             },

@@ -57,6 +57,16 @@ export interface GraphMemoryConfig {
     historyMaxTokens: number
   }
   ingest: { asyncIngest: boolean; flushOnTurnEndMs: number; maxTurnChars: number }
+  /** 成本估算用的官方单价（人民币/百万 token），仅用于面板展示，不参与计费。 */
+  pricing: {
+    model: string
+    currency: string
+    inputCacheMissPerM: number
+    inputCacheHitPerM: number
+    outputPerM: number
+    tier: string
+    note: string
+  }
   logging: { level: string }
   _raw?: Record<string, unknown>
 }
@@ -95,7 +105,27 @@ export const DEFAULT_CONFIG: GraphMemoryConfig = {
     historyMaxTokens: 200,
   },
   ingest: { asyncIngest: true, flushOnTurnEndMs: 2500, maxTurnChars: 12000 },
+  pricing: {
+    model: 'deepseek-flash',
+    currency: 'CNY',
+    inputCacheMissPerM: 2,
+    inputCacheHitPerM: 0.04,
+    outputPerM: 8,
+    tier: 'peak',
+    note: 'deepseek-flash 高峰价（北京时间周一至周五 9:00-12:00 / 14:00-18:00）；其余时段半价',
+  },
   logging: { level: 'info' },
+}
+
+/** 注入预算的可调区间：默认 3000，可调到 2M（红线 R1 从「固定 3000」放宽为「用户设定值」）。 */
+export const TOTAL_BUDGET_MIN = 3000
+export const TOTAL_BUDGET_MAX = 2_000_000
+export const TOTAL_BUDGET_DEFAULT = 3000
+
+export function clampTotalBudget(value: unknown): number {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return TOTAL_BUDGET_DEFAULT
+  return Math.min(TOTAL_BUDGET_MAX, Math.max(TOTAL_BUDGET_MIN, Math.round(numeric)))
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -119,7 +149,7 @@ export function deepMerge<T extends Record<string, any>>(base: T, overlay: unkno
 export function normalizeConfig(raw: unknown): GraphMemoryConfig {
   const config = deepMerge(DEFAULT_CONFIG, raw)
   if (config.sidecar.idleExitSeconds <= 0) config.sidecar.idleExitSeconds = 300
-  if (config.injection.totalHardTokens !== 3000) config.injection.totalHardTokens = 3000
+  config.injection.totalHardTokens = clampTotalBudget(config.injection.totalHardTokens)
   return config
 }
 

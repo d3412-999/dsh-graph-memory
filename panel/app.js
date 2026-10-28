@@ -20,7 +20,9 @@
   var SECONDS_PER_DAY = 24 * 3600;
   var POLL_MS = 5000;
 
-  var TOTAL_HARD = 3000; // §2.2 R1
+  var TOTAL_HARD = 3000; // §2.2 R1 的默认值（可在面板调整，区间 [3000, 2,000,000]）
+  var BUDGET_MIN = 3000;
+  var BUDGET_MAX = 2000000;
   var CAPS = {
     system: 128,  // SYSTEM_MAX
     memory: 2048, // MEM_MAX（动态上限 1024~2048）
@@ -38,6 +40,25 @@
 
   var COMPRESS_W = 0.6; // §2.6 压缩阈值
   var ARCHIVE_W = 0.3;  // §2.6 归档阈值
+
+  /** 当前生效的注入上限（面板可调，来自 /api/budget）。 */
+  function totalHard() {
+    var value = state.budget ? num(state.budget.max_tokens, 0) : 0;
+    return value > 0 ? value : TOTAL_HARD;
+  }
+
+  /** 当前生效的各容器上限（已由服务端按预算等比缩放）。 */
+  function currentCaps() {
+    var raw = state.budget && state.budget.caps;
+    if (!raw) return CAPS;
+    return {
+      system: num(raw.systemMaxTokens, CAPS.system),
+      memory: num(raw.memoryMaxTokens, CAPS.memory),
+      day: num(raw.dayTextMaxTokens, CAPS.day),
+      detail: num(raw.detailMaxTokens, CAPS.detail),
+      history: num(raw.historyMaxTokens, CAPS.history),
+    };
+  }
 
   var ROLLBACK_KINDS = ['supersede', 'update', 'weight', 'pin', 'forget', 'prune_archive'];
   var ROLLBACK_DAYS = 7;
@@ -80,6 +101,9 @@
     refreshing: false,
     pendingRefresh: false,
     actionBusy: false,
+    budget: null,        // /api/budget：当前上限、区间、缩放后的容器上限、单价
+    budgetError: null,
+    budgetDraft: null,   // 用户在滑杆/输入框里正在调的临时值
     toastTimer: null,
     pollTimer: null,
   };
@@ -289,6 +313,9 @@
 
   // 1) 硬预算仪表盘视图模型
   function budgetViewModel(injectionLast) {
+    var budget = state.budget || null;
+    var hard = totalHard();
+    var caps = currentCaps();
     var tokens = (injectionLast && injectionLast.tokens) || {};
     var segments = SEGMENTS.map(function (segment) {
       return {
@@ -296,7 +323,7 @@
         label: segment.label,
         color: segment.color,
         value: Math.max(0, Math.round(num(tokens[segment.key], 0))),
-        cap: CAPS[segment.key],
+        cap: caps[segment.key],
       };
     });
     var sum = segments.reduce(function (acc, seg) { return acc + seg.value; }, 0);
@@ -311,11 +338,47 @@
       total: total,
       sum: sum,
       declared: declared,
-      pct: Math.round((total / TOTAL_HARD) * 1000) / 10,
-      overflow: total > TOTAL_HARD,
+      hard: hard,
+      pct: Math.round((total / hard) * 1000) / 10,
+      overflow: total > hard,
       injectedCount: injectedIds.length,
+      price: budget && budget.pricing ? budget.pricing : null,
       segments: segments,
     };
+  }
+
+  // 3b) 预算视图模型：滑杆位置用对数刻度（3000 → 2,000,000 跨三个数量级）
+  function budgetSliderToValue(pos) {
+    var ratio = Math.max(0, Math.min(1, pos / 100));
+    var min = Math.log(BUDGET_MIN);
+    var max = Math.log(BUDGET_MAX);
+    var raw = Math.exp(min + ratio * (max - min));
+    var step = raw < 10000 ? 500 : (raw < 100000 ? 1000 : (raw < 1000000 ? 10000 : 50000));
+    return Math.max(BUDGET_MIN, Math.min(BUDGET_MAX, Math.round(raw / step) * step));
+  }
+
+  function budgetValueToSlider(value) {
+    var clamped = Math.max(BUDGET_MIN, Math.min(BUDGET_MAX, num(value, TOTAL_HARD)));
+    var min = Math.log(BUDGET_MIN);
+    var max = Math.log(BUDGET_MAX);
+    return ((Math.log(clamped) - min) / (max - min)) * 100;
+  }
+
+  function formatMoney(value) {
+    var amount = num(value, 0);
+    if (amount >= 1) return '¥' + amount.toFixed(2);
+    if (amount >= 0.01) return '¥' + amount.toFixed(4);
+    return '¥' + amount.toFixed(6);
+  }
+
+  function costText(tokens, price) {
+    if (!price) return '';
+    var miss = num(price.inputCacheMissPerM, 0);
+    var hit = num(price.inputCacheHitPerM, 0);
+    var count = Math.max(0, num(tokens, 0));
+    var missCost = (count * miss) / 1000000;
+    var hitCost = (count * hit) / 1000000;
+    return formatMoney(missCost) + ' / 句（缓存命中 ' + formatMoney(hitCost) + '）';
   }
 
   // 4) 节点详情 + 权重曲线视图模型
@@ -443,11 +506,12 @@
     return {
       nodes: nodes,
       edges: edges,
-      totalNodes: allNodes.length,
+      // 服务端已按 w 截断时，以 graph.total 为准，避免把「已截断的 140」显示成总量
+      totalNodes: Math.max(allNodes.length, num(graph && graph.total, 0)),
       totalEdges: allRelations.length,
       shownNodes: nodes.length,
       shownEdges: edges.length,
-      truncated: allNodes.length > nodes.length,
+      truncated: allNodes.length > nodes.length || Boolean(graph && graph.truncated),
     };
   }
 
@@ -717,7 +781,8 @@
     var ids = [
       'conn-chip', 'refresh-note',
       'budget-total', 'budget-cap', 'budget-pct', 'budget-meta', 'budget-bar', 'budget-legend',
-      'scope-stats', 'budget-error',
+      'scope-stats', 'budget-error', 'budget-note',
+      'budget-slider', 'budget-input', 'budget-apply', 'budget-hint', 'budget-cost',
       'graph-svg', 'graph-wrap', 'graph-tooltip', 'graph-empty', 'graph-counts', 'graph-note',
       'detail-body', 'detail-clear', 'curve-block', 'curve-current', 'weight-canvas',
       'memory-count', 'search-form', 'search-input', 'search-btn', 'search-clear', 'search-meta',
@@ -783,6 +848,7 @@
         guard(apiGet('/api/journal', { scope: scope, target_id: filter || undefined })),
         guard(apiGet('/api/prune', { scope: scope })),
         searchQuery ? guard(apiGet('/api/search', { q: searchQuery, scope: scope })) : Promise.resolve({ ok: true, data: null }),
+        guard(apiGet('/api/budget')),
       ]);
       // scope 已切换 / 有更新的刷新：丢弃本轮结果
       if (seq !== refreshSeq || state.scope !== scope) return;
@@ -793,6 +859,7 @@
       var journalRes = results[3];
       var pruneRes = results[4];
       var searchRes = results[5];
+      var budgetRes = results[6];
       var errors = [];
 
       // ---- panel_state（统计 / 死信 / 告警 / nodes 降级源）----
@@ -802,6 +869,15 @@
       } else {
         state.panelError = panelRes.error;
         errors.push('panel_state：' + panelRes.error);
+      }
+
+      // ---- 预算（可调上限 / 容器缩放 / 单价）----
+      if (budgetRes && budgetRes.ok) {
+        state.budget = budgetRes.data;
+        state.budgetError = null;
+      } else if (budgetRes) {
+        state.budgetError = budgetRes.error;
+        errors.push('budget：' + budgetRes.error);
       }
 
       // ---- 注入记录（预算仪表盘）----
@@ -934,7 +1010,7 @@
   function renderDashboard() {
     var vm = budgetViewModel(state.injectionLast);
     if (els['budget-total']) els['budget-total'].textContent = String(vm.total);
-    if (els['budget-cap']) els['budget-cap'].textContent = String(TOTAL_HARD);
+    if (els['budget-cap']) els['budget-cap'].textContent = String(vm.hard);
     if (els['budget-pct']) {
       els['budget-pct'].textContent = vm.pct + '%';
       els['budget-pct'].className = 'budget-pct' + (vm.overflow ? ' is-over' : '');
@@ -951,7 +1027,7 @@
     }
     if (els['budget-bar']) {
       els['budget-bar'].innerHTML = vm.segments.map(function (seg) {
-        var width = (seg.value / TOTAL_HARD) * 100;
+        var width = (seg.value / vm.hard) * 100;
         return '<span class="seg" style="width:' + width.toFixed(3) + '%;background:' + seg.color +
           '" title="' + escapeHtml(seg.label + ' ' + seg.value + ' / 上限 ' + seg.cap + ' tokens') + '"></span>';
       }).join('');
@@ -966,11 +1042,50 @@
           '<span class="legend-value">' + seg.value + '<span class="cap">/' + seg.cap + '</span></span></li>';
       }).join('');
     }
+    renderBudgetControl(vm);
     if (state.injectionError) {
       showDegraded(els['budget-error'], '注入统计获取失败，仪表盘已降级（' + state.injectionError + '）');
     } else {
       hideDegraded(els['budget-error']);
     }
+  }
+
+  /** 预算控制条：滑杆/输入框/应用按钮 + 该上下文长度下每句话的成本。 */
+  function renderBudgetControl(vm) {
+    var budget = state.budget;
+    var draft = state.budgetDraft !== null ? state.budgetDraft : (budget ? num(budget.max_tokens, TOTAL_HARD) : TOTAL_HARD);
+    if (els['budget-note']) {
+      els['budget-note'].innerHTML =
+        '注入总量硬顶 <strong id="budget-note-num">' + fmtNumber(vm.hard) + ' tokens</strong>，' +
+        '不随使用时长 / 轮数 / 图谱规模增长。<span class="en">（CONTRACT §2.2 · R1）</span>';
+    }
+    if (els['budget-slider'] && !els['budget-slider'].matches(':active')) {
+      els['budget-slider'].value = String(budgetValueToSlider(draft));
+    }
+    if (els['budget-input'] && document.activeElement !== els['budget-input']) {
+      els['budget-input'].value = String(draft);
+    }
+    if (els['budget-hint']) {
+      els['budget-hint'].textContent = fmtNumber(BUDGET_MIN) + ' – ' + fmtNumber(BUDGET_MAX) + ' tokens';
+    }
+    if (els['budget-cost'] && budget && budget.pricing) {
+      var price = budget.pricing;
+      var miss = num(price.inputCacheMissPerM, 0);
+      els['budget-cost'].innerHTML =
+        '按 <strong>' + escapeHtml(price.model || 'deepseek-flash') + '</strong> 高峰价 ¥' + miss +
+        '/百万输入 token 估算：<strong>' + costText(draft, price) + '</strong>' +
+        '<span class="cost-note">仅注入段；' + escapeHtml(price.note || '') + '</span>';
+    }
+  }
+
+  /** 提交预算改动（POST /api/action，action=set_budget）。 */
+  function applyBudget(value) {
+    var next = Math.max(BUDGET_MIN, Math.min(BUDGET_MAX, Math.round(num(value, TOTAL_HARD))));
+    var price = (state.budget && state.budget.pricing) || null;
+    submitAction(
+      { action: 'set_budget', max_tokens: next },
+      '注入上限已设为 ' + fmtNumber(next) + ' tokens（每句约 ' + costText(next, price) + '）'
+    );
   }
 
   function renderScopeStats(panel) {
@@ -1924,6 +2039,35 @@
   }
 
   function bindEvents() {
+    // 预算控制：滑杆拖动即时预览成本，松手/应用才落盘
+    if (els['budget-slider']) {
+      els['budget-slider'].addEventListener('input', function () {
+        state.budgetDraft = budgetSliderToValue(num(els['budget-slider'].value, 0));
+        if (els['budget-input']) els['budget-input'].value = String(state.budgetDraft);
+        renderDashboard();
+      });
+      els['budget-slider'].addEventListener('change', function () {
+        if (state.budgetDraft !== null) applyBudget(state.budgetDraft);
+      });
+    }
+    if (els['budget-input']) {
+      els['budget-input'].addEventListener('input', function () {
+        state.budgetDraft = Math.max(BUDGET_MIN, Math.min(BUDGET_MAX, Math.round(num(els['budget-input'].value, TOTAL_HARD))));
+        renderBudgetControl(budgetViewModel(state.injectionLast));
+      });
+      els['budget-input'].addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          applyBudget(state.budgetDraft !== null ? state.budgetDraft : num(els['budget-input'].value, TOTAL_HARD));
+        }
+      });
+    }
+    if (els['budget-apply']) {
+      els['budget-apply'].addEventListener('click', function () {
+        applyBudget(state.budgetDraft !== null ? state.budgetDraft : num(els['budget-input'] && els['budget-input'].value, TOTAL_HARD));
+      });
+    }
+
     var scopeButtons = document.querySelectorAll('.scope-btn');
     for (var i = 0; i < scopeButtons.length; i += 1) {
       (function (button) {

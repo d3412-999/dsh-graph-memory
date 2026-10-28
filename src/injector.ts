@@ -10,8 +10,46 @@
  */
 import type { AgentLike, AssembleContextLike, InjectionRecord, MemoryItem, PluginContext, PromptAssembly, RetrieveResult, DayPackResult } from './types.js'
 import type { GraphMemoryConfig } from './config.js'
-import { assembleInjection, InjectionCache, estimateTokens, type AssembleInjectionResult } from './budgeter.js'
+import { clampTotalBudget } from './config.js'
+import { readFileSync, statSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { assembleInjection, InjectionCache, estimateTokens, resolveBudgetCaps, type AssembleInjectionResult } from './budgeter.js'
 import type { SidecarClient } from './sidecarClient.js'
+
+/**
+ * 面板写入的预算覆盖（`<userDataHome>/budget.json`，由 sidecar 的 set_budget 落盘）。
+ * 宿主侧不缓存进程内状态：每次按 mtime 判断是否重读，面板改完下一个 step 就生效。
+ */
+class BudgetOverride {
+  private readonly file: string
+  private mtimeMs = -1
+  private value: number | null = null
+
+  constructor(userDataHome: string) {
+    this.file = join(userDataHome, 'budget.json')
+  }
+
+  resolve(fallback: number): number {
+    try {
+      const stat = statSync(this.file)
+      if (stat.mtimeMs !== this.mtimeMs) {
+        this.mtimeMs = stat.mtimeMs
+        const raw = JSON.parse(readFileSync(this.file, 'utf8')) as { maxTokens?: unknown }
+        this.value = raw?.maxTokens === undefined ? null : clampTotalBudget(raw.maxTokens)
+      }
+    } catch {
+      this.mtimeMs = -1
+      this.value = null
+    }
+    return this.value ?? clampTotalBudget(fallback)
+  }
+}
+
+function resolveUserDataHome(config: GraphMemoryConfig): string {
+  const raw = config.paths?.userDataHome
+  return raw && String(raw).trim() ? resolve(String(raw)) : resolve(join(homedir(), '.dsh', 'graph-memory'))
+}
 
 export interface InjectorDeps {
   client: SidecarClient
@@ -69,6 +107,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
 export class Injector {
   private readonly deps: InjectorDeps
   private readonly cache: InjectionCache
+  private readonly budget: BudgetOverride
   private readonly states = new Map<string, SessionState>()
   private disposeFns: Array<() => void> = []
   private lastError = ''
@@ -76,6 +115,7 @@ export class Injector {
   constructor(deps: InjectorDeps) {
     this.deps = deps
     this.cache = deps.cache ?? new InjectionCache()
+    this.budget = new BudgetOverride(resolveUserDataHome(deps.config))
   }
 
   get lastInjectionError(): string {
@@ -246,7 +286,12 @@ export class Injector {
             {
               query,
               scope: ['user', 'workspace'],
-              budget: { mem_max: this.deps.config.injection.memoryMaxTokens },
+              budget: {
+                mem_max: resolveBudgetCaps({
+                  ...this.deps.config.injection,
+                  totalHardTokens: this.budget.resolve(this.deps.config.injection.totalHardTokens),
+                }).memoryMaxTokens,
+              },
               explicit,
               session_id: sessionId,
               turn: state.turn,
@@ -296,7 +341,11 @@ export class Injector {
       recently_updated: this.isRecentlyUpdated(item.updated),
     }))
     const assembled = assembleInjection({
-      config: this.deps.config.injection,
+      // 预算以面板设定为准（budget.json），没有文件时回落到 profile 配置
+      config: {
+        ...this.deps.config.injection,
+        totalHardTokens: this.budget.resolve(this.deps.config.injection.totalHardTokens),
+      },
       memoryItems,
       day,
       explicit: Boolean(explicit),

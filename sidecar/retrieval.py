@@ -33,6 +33,7 @@ from base import (
 )
 from weight import current_w
 from weight import score as weight_score
+import budget as budget_mod
 
 DEFAULT_TOP_K = 20
 RELATION_DISCOUNT = 0.5
@@ -346,11 +347,15 @@ def dynamic_memory_cap(
     explicit: bool = False,
     config: Any = None,
 ) -> int:
-    """动态 memory token 上限（§2.2）：explicit 2048 > pin/w≥5 1792 > top1>0.8 1536 > 默认 1024。"""
-    default_cap = int(_cfg(config, "injection.memoryDefaultTokens", 1024))
-    high_sim_cap = int(_cfg(config, "injection.memoryHighSimTokens", 1536))
-    boost_cap = int(_cfg(config, "injection.memoryBoostTokens", 1792))
-    explicit_cap = int(_cfg(config, "injection.memoryExplicitTokens", 2048))
+    """动态 memory token 上限（§2.2）：explicit 2048 > pin/w≥5 1792 > top1>0.8 1536 > 默认 1024。
+
+    上限随「注入预算」等比缩放（预算默认 3000，可调至 2M）。
+    """
+    caps = budget_mod.injection_caps(config)
+    default_cap = caps["memoryDefaultTokens"]
+    high_sim_cap = caps["memoryHighSimTokens"]
+    boost_cap = caps["memoryBoostTokens"]
+    explicit_cap = caps["memoryExplicitTokens"]
     high_sim_threshold = float(_cfg(config, "injection.highSimThreshold", 0.8))
     if explicit:
         return explicit_cap

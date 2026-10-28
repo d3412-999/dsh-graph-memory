@@ -1,6 +1,6 @@
 # dsh-graph-memory 独立验收报告
 
-- 生成时间：2026-10-28T18:45:13+0800
+- 生成时间：2026-10-28T22:57:50+0800
 - 运行环境：Python 3.14.0 / Windows-11-10.0.26200-SP0
 - 仓库：`C:\Users\15868\Desktop\练手项目\deepseek-memory`
 
@@ -21,7 +21,7 @@ py -3 -m unittest tests.python.test_protocol tests.python.test_tokens -v
 
 | 总数 | 通过 | 失败 | 错误 | 跳过 | 耗时 |
 |---|---|---|---|---|---|
-| 17 | 17 | 0 | 0 | 0 | 35.1s |
+| 17 | 17 | 0 | 0 | 0 | 125.8s |
 
 退出码：`0`（0=全部通过，1=有失败，2=有跳过） ✅
 
@@ -29,23 +29,23 @@ py -3 -m unittest tests.python.test_protocol tests.python.test_tokens -v
 
 | 用例 | 状态 | 耗时 | 验收编号 | 失败原因/关键证据 |
 |---|---|---|---|---|
-| `test_A_memory_loop` | PASS | 0.5s | 1, 2, 7, 8 | ingest_elapsed_s=0.0188; retrieved_items=[{"name": "pnpm", "sim": 0.312193}, {"name": "npm", "sim": 0.035093}] |
-| `test_B_compress_before_prune` | PASS | 0.52s | 9, 27 | nodes_before=60; compress_result={"compressed": ["ent_0064259a305e1a49", "ent_b454c6cbad9faa34", "ent_0f82a1c5936c8186", "ent_ecd3f1d684d93aca", "ent_... |
-| `test_C_supersede_daily` | PASS | 0.45s | 11, 12, 13, 14, 16 | old_description="用户喜欢咖啡"; superseded={"before": "用户喜欢咖啡", "after": "用户不喜欢咖啡", "valid_from": "2026-10-29", "protect_days": 7.0, "w": 1.0} |
-| `test_D1_200_turns_constant_budget` | PASS | 6.21s | 17, 22 | turn1_total=1149; steady_totals=[1349, 1349, 1349, 1349, 1349, 1349, 1349, 1350, 1350, 1350, 1350, 1350, 1350, 1350, 1350, 1350] |
-| `test_D2_30days_constant_budget_single_history` | PASS | 12.5s | 17, 19, 21 | day1_total=1016; daily_totals_tail=[{"day": 26, "total": 1150}, {"day": 27, "total": 1150}, {"day": 28, "total": 1150}, {"day": 29, "total": 1150}, {"da... |
-| `test_D3_graph_scale_constant_budget` | PASS | 2.6s | 17, 22 | nodes=20001; before_tokens={"system": 46, "memory": 775, "day": 15, "detail": 0, "history": 0, "total": 880} |
-| `test_D4_compressed_detail_recall` | PASS | 0.63s | 19, 20 | compressed=true; summary_tokens=346 |
-| `test_E1_90days_below_high_zero_delete` | PASS | 1.35s | 24 | nodes=1000; archived_after_90d=0 |
-| `test_E2_over_high_prune_to_low` | PASS | 2.01s | 25 | high=200; low=160 |
-| `test_E3_band_fluctuation_triggers` | PASS | 1.29s | 26 | high=100; low=80 |
-| `test_E4_single_round_max_fraction` | PASS | 1.88s | 26 | nodes_before=201; expected_limit=17 |
-| `test_E5_pinned_stuck_alarm` | PASS | 1.94s | 26 | pinned=189; rounds=[{"round": 1, "action": "compress", "reason": "over_high", "stuck": false, "live": 190}, {"round": 2, "action": "prun... |
-| `test_E6_scope_isolation` | PASS | 0.52s | 26 | user_counts=[30, 30, 27, 24, 22]; workspace_before={"nodes": 10, "nodes_live": 10, "phase": "idle"} |
-| `test_F1_pure_responses_dropped` | PASS | 0.46s | 4, 8b | rows=[{"text": "好的", "dropped": true, "reason": "too_short"}, {"text": "嗯嗯", "dropped": true, "reason": "too_short"}, {"te... |
-| `test_F2_signal_pass_no_false_kill` | PASS | 0.44s | 4, 8c | rows=[{"text": "明天下午三点开会", "dropped": false, "reason": "passed", "nodes": 0}, {"text": "价格改成 80", "dropped": false, "reaso... |
-| `test_F3_short_sentences_no_false_kill` | PASS | 1.42s | 4, 8d | sentences=100; killed=0 |
-| `test_F4_credential_dropped_and_alarm` | PASS | 0.39s | 4 | rows=[{"text": "我的 api key 是 sk-abcdefgh12345678，帮我保存", "dropped": true, "reason": "credential"}, {"text": "Authorization:...; warning_notifications=3 |
+| `test_A_memory_loop` | PASS | 1.26s | 1, 2, 7, 8 | ingest_elapsed_s=0.0847; retrieved_items=[{"name": "pnpm", "sim": 0.330167}, {"name": "npm", "sim": 0.035093}] |
+| `test_B_compress_before_prune` | PASS | 2.22s | 9, 27 | nodes_before=60; compress_result={"compressed": ["ent_89a086800076342e", "ent_ff4671ec3dce7307", "ent_200c6e28b38012bb", "ent_a0018f13a6d7e4f3", "ent_... |
+| `test_C_supersede_daily` | PASS | 1.47s | 11, 12, 13, 14, 16 | old_description="用户喜欢咖啡"; superseded={"before": "用户喜欢咖啡", "after": "用户不喜欢咖啡", "valid_from": "2026-03-16", "protect_days": 7.0, "w": 1.0} |
+| `test_D1_200_turns_constant_budget` | PASS | 21.66s | 17, 22 | turn1_total=1149; steady_totals=[1349, 1349, 1349, 1349, 1349, 1349, 1350, 1351, 1351, 1351, 1351, 1351, 1351, 1351, 1351, 1351] |
+| `test_D2_30days_constant_budget_single_history` | PASS | 43.74s | 17, 19, 21 | day1_total=1016; daily_totals_tail=[{"day": 26, "total": 1151}, {"day": 27, "total": 1151}, {"day": 28, "total": 1151}, {"day": 29, "total": 1151}, {"da... |
+| `test_D3_graph_scale_constant_budget` | PASS | 3.38s | 17, 22 | nodes=20001; before_tokens={"system": 46, "memory": 775, "day": 15, "detail": 0, "history": 0, "total": 881} |
+| `test_D4_compressed_detail_recall` | PASS | 2.76s | 19, 20 | compressed=true; summary_tokens=346 |
+| `test_E1_90days_below_high_zero_delete` | PASS | 3.99s | 24 | nodes=1000; archived_after_90d=0 |
+| `test_E2_over_high_prune_to_low` | PASS | 8.71s | 25 | high=200; low=160 |
+| `test_E3_band_fluctuation_triggers` | PASS | 6.14s | 26 | high=100; low=80 |
+| `test_E4_single_round_max_fraction` | PASS | 8.27s | 26 | nodes_before=201; expected_limit=17 |
+| `test_E5_pinned_stuck_alarm` | PASS | 8.2s | 26 | pinned=189; rounds=[{"round": 1, "action": "compress", "reason": "over_high", "stuck": false, "live": 190}, {"round": 2, "action": "prun... |
+| `test_E6_scope_isolation` | PASS | 2.62s | 26 | user_counts=[30, 30, 27, 24, 22]; workspace_before={"nodes": 10, "nodes_live": 10, "phase": "idle"} |
+| `test_F1_pure_responses_dropped` | PASS | 1.17s | 4, 8b | rows=[{"text": "好的", "dropped": true, "reason": "too_short"}, {"text": "嗯嗯", "dropped": true, "reason": "too_short"}, {"te... |
+| `test_F2_signal_pass_no_false_kill` | PASS | 1.32s | 4, 8c | rows=[{"text": "明天下午三点开会", "dropped": false, "reason": "passed", "nodes": 0}, {"text": "价格改成 80", "dropped": false, "reaso... |
+| `test_F3_short_sentences_no_false_kill` | PASS | 7.76s | 4, 8d | sentences=100; killed=0 |
+| `test_F4_credential_dropped_and_alarm` | PASS | 1.12s | 4 | rows=[{"text": "我的 api key 是 sk-abcdefgh12345678，帮我保存", "dropped": true, "reason": "credential"}, {"text": "Authorization:...; warning_notifications=3 |
 
 ## 27 条验收标准映射
 
@@ -158,11 +158,11 @@ Day2 「我现在不喜欢喝咖啡了，改成喝茶」抽出的候选名与 Da
 
 ```json
 {
- "ingest_elapsed_s": 0.0188,
+ "ingest_elapsed_s": 0.0847,
  "retrieved_items": [
   {
    "name": "pnpm",
-   "sim": 0.312193
+   "sim": 0.330167
   },
   {
    "name": "npm",
@@ -170,8 +170,8 @@ Day2 「我现在不喜欢喝咖啡了，改成喝茶」抽出的候选名与 Da
   }
  ],
  "activated": {
-  "ent_015049cc552db860": 1.5999999862081826,
-  "ent_308a44c371975e77": 1.5999999863683048
+  "ent_c41accc9f025a3b9": 1.599999966810178,
+  "ent_248436de9759fb07": 1.5999999670014504
  },
  "r3_violations": []
 }
@@ -184,66 +184,66 @@ Day2 「我现在不喜欢喝咖啡了，改成喝茶」抽出的候选名与 Da
  "nodes_before": 60,
  "compress_result": {
   "compressed": [
-   "ent_0064259a305e1a49",
-   "ent_b454c6cbad9faa34",
-   "ent_0f82a1c5936c8186",
-   "ent_ecd3f1d684d93aca",
-   "ent_3a78f42a1086337e",
-   "ent_a0a7b22547df4aa5",
-   "ent_38800f6c79a0adb1",
-   "ent_a404f6c2f0d306f2",
-   "ent_78317517f3d818ef",
-   "ent_ffcbc77f819988fb",
-   "ent_194b04a9db89f6a9",
-   "ent_a1c2dd8e4946509a",
-   "ent_aa7d6f9dee28b292",
-   "ent_b4eaee2fc8f66107",
-   "ent_401bf09e8e3559fb",
-   "ent_88d9d73059e3d184",
-   "ent_423d13556c36aa04",
-   "ent_73d417e496d3a800",
-   "ent_240a2639f9b7c28a",
-   "ent_eb645c930b6f25e7",
-   "ent_92ccc503cfcb4835",
-   "ent_ede9957a866ac34d",
-   "ent_d6e18569601dcb4b",
-   "ent_ec862a1832d54558",
-   "ent_c5982617f161c524",
-   "ent_ecdda400cffc0aa7",
-   "ent_1a1896d6da70d6d4",
-   "ent_7f42fd2a59a1d358",
-   "ent_09aae19416f69a38",
-   "ent_c8877ba220996cd0",
-   "ent_5434362a4b602597",
-   "ent_6358ca4f5eea01be",
-   "ent_0ef54508348e68be",
-   "ent_7fa6a22135ea86a7",
-   "ent_87b656be7a6e0f43",
-   "ent_b1099c5baff32658",
-   "ent_dc6f03dc8bd1f9ff",
-   "ent_e51c96a9c827398f",
-   "ent_045ad895b5d992c1",
-   "ent_22ba6e0f713d4dd2",
-   "ent_12acdeeb6d786ac8",
-   "ent_7df7b625099c6d5d",
-   "ent_0a60afd562059520",
-   "ent_29405149e78c2bf2",
-   "ent_30e50dffc7ee15da",
-   "ent_871da32410b0d88a",
-   "ent_1a36aae145fc7177",
-   "ent_b78e01e4da3afb1d",
-   "ent_1a6ff6b1a24ff56c",
-   "ent_aa3a8de779e53a14",
-   "ent_9c9838e27f16b099",
-   "ent_b4488386e0eb9cc4",
-   "ent_84d5a05582688b52",
-   "ent_a9035912ce1ba9fd",
-   "ent_2097c41990f716ad",
-   "ent_275a6894acc85135",
-   "ent_ca8fa703fc1ba9b2",
-   "ent_f0743e2ad0bdd459",
-   "ent_52846347bcb60dc7",
-   "ent_a14f62c66e69de1e"
+   "ent_89a086800076342e",
+   "ent_ff4671ec3dce7307",
+   "ent_200c6e28b38012bb",
+   "ent_a0018f13a6d7e4f3",
+   "ent_24a1bb5b1b0bad52",
+   "ent_d387d1fda46b740a",
+   "ent_1924be449c85ea0a",
+   "ent_e14c517a942d8565",
+   "ent_4bda5f3f3d3f2637",
+   "ent_fbe3107a12da3378",
+   "ent_08cb9f8566c5b9d2",
+   "ent_383323b8b8bc71be",
+   "ent_ad57c4a6f27fa73e",
+   "ent_e78f7b57f9e8c41c",
+   "ent_259ee3f504eeec68",
+   "ent_b00e0466f0053b6d",
+   "ent_a04a63c4d17b9e84",
+   "ent_d383f7423ce7ae84",
+   "ent_83079ace46b3f421",
+   "ent_a9d2eddce39bf6b5",
+   "ent_53a2d2b64e89ac15",
+   "ent_d9d817edd51e0b96",
+   "ent_57cad596ed7e5ac4",
+   "ent_c453cc9fac8c59f8",
+   "ent_9cfef3e6c4b4068c",
+   "ent_cf8cdff91667e594",
+   "ent_92e501d9d020e6d6",
+   "ent_9f4e33809032ff35",
+   "ent_50df9d10a42241e9",
+   "ent_c9626b583f6316a7",
+   "ent_9c3476d83df9be46",
+   "ent_a6cf47d3c5a4bc88",
+   "ent_021c49fe425a2907",
+   "ent_14123dad255fe71f",
+   "ent_4062ab3504a6c747",
+   "ent_628a14b6a8e597da",
+   "ent_570b486cad9014c7",
+   "ent_cef3336378042c04",
+   "ent_31159dc9fb589759",
+   "ent_3adb0a924b2bb977",
+   "ent_19384fd245a69794",
+   "ent_c3ccd600246ee547",
+   "ent_6386569a3669ed5b",
+   "ent_faaf71100a9f9106",
+   "ent_077e939b2ec011f8",
+   "ent_bae283435f490fd9",
+   "ent_90f22c70ad12c0c7",
+   "ent_cdc7f203988ba501",
+   "ent_aa992054c275d338",
+   "ent_af80903a529ef30f",
+   "ent_9a70037627a6aaaa",
+   "ent_a9a09b710216d210",
+   "ent_4393425abb8f04a0",
+   "ent_ccdd1933f3da8348",
+   "ent_1e19e7ce8f408ca7",
+   "ent_f14439ce62e74f89",
+   "ent_d242dcdb2a2d1a79",
+   "ent_d70e0c62c9268f58",
+   "ent_7e27de882da4d344",
+   "ent_f138b096a27ec547"
   ],
   "merged": [],
   "skipped": null,
@@ -271,18 +271,18 @@ Day2 「我现在不喜欢喝咖啡了，改成喝茶」抽出的候选名与 Da
  "superseded": {
   "before": "用户喜欢咖啡",
   "after": "用户不喜欢咖啡",
-  "valid_from": "2026-10-29",
+  "valid_from": "2026-03-16",
   "protect_days": 7.0,
   "w": 1.0
  },
  "journal_entry": {
   "id": 1,
   "kind": "supersede",
-  "target_id": "ent_ac8bc61a6d904e6d",
-  "ts": 1793270680.1005824
+  "target_id": "ent_21964ec23ea65f39",
+  "ts": 1773622800.2197654
  },
  "day3_recall_ids": [
-  "ent_ac8bc61a6d904e6d"
+  "ent_21964ec23ea65f39"
  ],
  "rollback_restored": true
 }
@@ -300,26 +300,26 @@ Day2 「我现在不喜欢喝咖啡了，改成喝茶」抽出的候选名与 Da
   1349,
   1349,
   1349,
-  1349,
   1350,
-  1350,
-  1350,
-  1350,
-  1350,
-  1350,
-  1350,
-  1350,
-  1350
+  1351,
+  1351,
+  1351,
+  1351,
+  1351,
+  1351,
+  1351,
+  1351,
+  1351
  ],
- "steady_span_pct": 0.074,
- "max_total": 1412,
+ "steady_span_pct": 0.148,
+ "max_total": 1441,
  "final_tokens": {
   "system": 46,
   "memory": 778,
   "day": 393,
-  "detail": 86,
+  "detail": 87,
   "history": 0,
-  "total": 1350
+  "total": 1351
  }
 }
 ```
@@ -332,23 +332,23 @@ Day2 「我现在不喜欢喝咖啡了，改成喝茶」抽出的候选名与 Da
  "daily_totals_tail": [
   {
    "day": 26,
-   "total": 1150
+   "total": 1151
   },
   {
    "day": 27,
-   "total": 1150
+   "total": 1151
   },
   {
    "day": 28,
-   "total": 1150
+   "total": 1151
   },
   {
    "day": 29,
-   "total": 1150
+   "total": 1151
   },
   {
    "day": 30,
-   "total": 1150
+   "total": 1151
   }
  ],
  "steady_span_pct": 0.0,
@@ -356,11 +356,11 @@ Day2 「我现在不喜欢喝咖啡了，改成喝茶」抽出的候选名与 Da
  "history_files": 1,
  "last_day_tokens": {
   "system": 46,
-  "memory": 709,
+  "memory": 710,
   "day": 147,
   "detail": 0,
   "history": 200,
-  "total": 1150
+  "total": 1151
  }
 }
 ```
@@ -376,7 +376,7 @@ Day2 「我现在不喜欢喝咖啡了，改成喝茶」抽出的候选名与 Da
   "day": 15,
   "detail": 0,
   "history": 0,
-  "total": 880
+  "total": 881
  },
  "after_tokens": {
   "system": 46,
@@ -384,7 +384,7 @@ Day2 「我现在不喜欢喝咖啡了，改成喝茶」抽出的候选名与 Da
   "day": 15,
   "detail": 0,
   "history": 0,
-  "total": 880
+  "total": 881
  },
  "diff_pct": 0.0,
  "top1_sim": {
@@ -424,9 +424,9 @@ Day2 「我现在不喜欢喝咖啡了，改成喝茶」抽出的候选名与 Da
   0.0001
  ],
  "weights_after": {
-  "ent_22b4548890758025": 0.6001347764730486,
-  "ent_2418fcc8ccc1f6af": 0.6001347764730486,
-  "ent_2b56ad36495d05ac": 0.6001347764730486
+  "ent_00c7e63ceb00fdc4": 0.6001347762288741,
+  "ent_06fd01ed33b1080e": 0.6001347762288741,
+  "ent_2b935173ad17576f": 0.6001347762288741
  }
 }
 ```
@@ -636,7 +636,7 @@ Day2 「我现在不喜欢喝咖啡了，改成喝茶」抽出的候选名与 Da
  ],
  "prune_stuck_alarm": {
   "id": 1,
-  "ts": 1794480310.5104315,
+  "ts": 1774832407.2269053,
   "scope": "workspace",
   "kind": "prune_stuck",
   "detail": {

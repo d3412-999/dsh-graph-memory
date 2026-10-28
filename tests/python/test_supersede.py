@@ -14,6 +14,7 @@ import shutil
 import sys
 import unittest
 import uuid
+from typing import Any
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SIDECAR = os.path.join(ROOT, "sidecar")
@@ -489,6 +490,47 @@ class SweepConflictsTests(GraphTestBase):
         self.assertEqual(report["checked"], 0)
         self.assertEqual(report["conflicts"], 0)
         self.assertEqual(report["pairs"], [])
+
+
+class RewriteDescriptionTests(unittest.IsolatedAsyncioTestCase):
+    """改口改写：offline 降级不得把提示词原文写成新描述（提示词泄漏回归）。"""
+
+    async def test_offline_rewrite_returns_empty_instead_of_prompt(self) -> None:
+        bridge = LlmBridge(Config({"llm": {"mode": "offline", "timeoutMs": 1000}}))
+        prompt = (
+            "你是记忆改写器。旧记忆描述与用户最新一句话如下。请输出一句不超过 60 字的中文新描述。\n"
+            "<<<OLD>>>用户使用pnpm\n<<<NEW>>>我们不用 pnpm 了，包管理器换成 yarn。"
+        )
+        out = await bridge.complete(prompt, max_tokens=120, purpose="rewrite")
+        self.assertEqual(out, "", "offline rewrite 必须返回空串，交由 service 规则兜底")
+
+    async def test_prompt_echo_is_rejected_and_replacement_rewritten(self) -> None:
+        from service import MemoryService  # noqa: PLC0415
+
+        class EchoLlm:
+            async def complete(self, prompt: str, **_kwargs: Any) -> str:
+                return prompt  # 模拟模型原样回显提示词
+
+        service = MemoryService.__new__(MemoryService)
+        service.llm = EchoLlm()
+        node = {"name": "包管理器", "description": "用户使用pnpm"}
+        text = await service._compose_rewritten_description(node, "我们不用 pnpm 了，包管理器换成 yarn。")
+        self.assertEqual(text, "包管理器已改用yarn")
+        self.assertNotIn("记忆改写器", text)
+        self.assertNotIn("<<<OLD>>>", text)
+
+    async def test_negation_rewrite_keeps_core_object(self) -> None:
+        from service import MemoryService  # noqa: PLC0415
+
+        class EmptyLlm:
+            async def complete(self, prompt: str, **_kwargs: Any) -> str:
+                return ""
+
+        service = MemoryService.__new__(MemoryService)
+        service.llm = EmptyLlm()
+        node = {"name": "深色主题", "description": "用户喜欢深色主题"}
+        text = await service._compose_rewritten_description(node, "我现在不喜欢深色主题了，改用浅色。")
+        self.assertEqual(text, "用户不喜欢深色主题")
 
 
 if __name__ == "__main__":

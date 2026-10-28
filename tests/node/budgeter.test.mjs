@@ -213,3 +213,51 @@ test('随机 fuzz：任何输入总注入 token 都 <= 3000', () => {
     assert.ok(estimateTokens(result.text) <= 3000, `seed=${seed} measured=${estimateTokens(result.text)}`)
   }
 })
+
+// --------------------------------------------------------------------------- //
+// 可调预算：[3000, 2_000_000]，默认 3000，各容器按 total/3000 等比缩放
+// --------------------------------------------------------------------------- //
+test('resolveBudgetCaps：3000 时与基线完全一致，预算越大容器越大', async () => {
+  const { resolveBudgetCaps } = await import('../../lib/budgeter.js')
+  const base = resolveBudgetCaps(INJECTION)
+  assert.equal(base.total, 3000)
+  assert.equal(base.memoryMaxTokens, 2048)
+  assert.equal(base.dayTextMaxTokens, 512)
+  assert.equal(base.historyMaxTokens, 200)
+
+  const large = resolveBudgetCaps({ ...INJECTION, totalHardTokens: 300000 })
+  assert.equal(large.total, 300000)
+  assert.equal(large.memoryMaxTokens, 2048 * 100)
+  assert.equal(large.dayTextMaxTokens, 512 * 100)
+  assert.equal(large.historyMaxTokens, 200 * 100)
+})
+
+test('resolveBudgetCaps：低于 3000 抬到 3000，高于 2M 压到 2M', async () => {
+  const { resolveBudgetCaps } = await import('../../lib/budgeter.js')
+  assert.equal(resolveBudgetCaps({ ...INJECTION, totalHardTokens: 10 }).total, 3000)
+  assert.equal(resolveBudgetCaps({ ...INJECTION, totalHardTokens: 9_999_999 }).total, 2000000)
+  assert.equal(resolveBudgetCaps({ ...INJECTION, totalHardTokens: 'abc' }).total, 3000)
+})
+
+test('可调预算下注入总量仍 <= 设定值，且大预算能装下更多内容', () => {
+  const many = Array.from({ length: 400 }, (_, i) => item(i, `第 ${i} 条偏好，内容稍长一些用于占位`))
+  const small = assembleInjection({
+    config: INJECTION,
+    memoryItems: many,
+    day: dayPack(2000, 800, 400),
+    explicit: true,
+    top1Sim: 0.9,
+    highWeightCount: 2,
+  })
+  const big = assembleInjection({
+    config: { ...INJECTION, totalHardTokens: 20000 },
+    memoryItems: many,
+    day: dayPack(2000, 800, 400),
+    explicit: true,
+    top1Sim: 0.9,
+    highWeightCount: 2,
+  })
+  assert.ok(small.tokens.total <= 3000, `small=${small.tokens.total}`)
+  assert.ok(big.tokens.total <= 20000, `big=${big.tokens.total}`)
+  assert.ok(big.tokens.total > small.tokens.total, '放宽预算后应能注入更多内容')
+})

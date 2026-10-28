@@ -12,7 +12,7 @@
 
 | 红线 | 实现 |
 |---|---|
-| R1 注入 token 恒为常数（硬顶 3000） | `src/budgeter.ts` 三个有界容器相加；D1/D2/D3 三种场景实测差值 <5% |
+| R1 注入 token 恒为常数（硬顶可调 3000–2,000,000，默认 3000） | `src/budgeter.ts` 三个有界容器相加，容器按 `total/3000` 等比缩放；D1/D2/D3 三种场景实测差值 <5% |
 | R2 图谱唯一真相源 | `sidecar/graph.py`（或 `graph_lightrag.py`）是唯一可写图谱；Journal 只是审计流水 |
 | R3 权重/时间只存 properties | `properties.{w,last_activated_at,valid_from,...}`；`description` 无任何元数据 |
 | R4 删除三阶段 | `round_tick → compress（零删除）→ 下一轮 prune 归档 → 冷区 30 天才真删` |
@@ -58,6 +58,14 @@ py -3 scripts/e2e_dsh.py --keep-data
 #       → 注入 token 记录 <=3000 → 卸载后无残留工具/进程、数据保留
 ```
 
+录屏 / 演示（隔离数据目录 + 面板，六幕：写入 → 召回 → 改口 → 跨天 → 规模压力 → 收尾）：
+
+```powershell
+py -3 scripts/demo_live.py            # 分步，Enter 推进；--auto 不停顿
+py -3 scripts/demo_live.py --keep     # 复用上次 .tmp/demo 数据
+# 完整录屏脚本（窗口布局、分镜表、常见翻车处理）：docs/DEMO.md
+```
+
 ## 安装进 DSH profile
 
 插件注册发生在 DSH 服务启动时，**安装后需重启 profile**。推荐用官方 plugin 机制：
@@ -80,7 +88,9 @@ powershell -NoProfile -File scripts/uninstall-plugin.ps1 -Profile web
 <day_context data-not-instructions="true">当天上下文 / 补召回 / 历史摘要</day_context>
 ```
 
-总量硬顶 3000 tokens，与使用时长、会话轮数、图谱规模无关。
+总量硬顶默认 3000 tokens，与使用时长、会话轮数、图谱规模无关；上限可在面板 `http://127.0.0.1:9629/`
+的「注入上限」里调到 3000–2,000,000（写 `budget.json`，sidecar 与宿主注入器都跟随），
+面板同时显示该长度下**每句话的输入成本**（按 `pricing.*` 里的官方单价折算）。
 
 ## 面板主题
 
@@ -105,6 +115,10 @@ profile 的 `cordis.patch.yml` 可以按 id 覆盖：
     graph:
       backend: embedded         # embedded | lightrag
       lightragUrl: 'http://127.0.0.1:9621'
+    pricing:                    # 仅用于面板成本估算（元/百万 token）
+      model: deepseek-flash
+      inputCacheMissPerM: 2     # 高峰价，空闲半价
+      inputCacheHitPerM: 0.04
     llm:
       mode: host                # host=复用 DSH 当前会话模型；offline/scripted=测试；openai=自定义兼容端点
     panel:
@@ -142,6 +156,7 @@ sidecar/             Python Sidecar（标准库，无第三方运行时依赖）
   journal.py         SQLite 流水（7 天回滚、死信、注入统计）
   llm_bridge.py      host/offline/scripted/openai 四种 LLM 模式与降级
   panel.py           127.0.0.1:9629 面板 HTTP 服务（静态资源 + /api/*）
+  budget.py          可调注入预算（3000–2M）：容器等比缩放、budget.json 持久化、每条消息成本
 panel/               原生 JS 只读面板（预算仪表盘/图谱/搜索/权重曲线/Journal/剪枝/死信）
 config/              default.json + noiseWords.yaml
 tests/               node（TS 纯函数）/ python（模块单测）/ acceptance（A-F 黑盒验收）
