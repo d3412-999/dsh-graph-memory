@@ -1,0 +1,25 @@
+# local build/test artifacts
+node_modules/
+lib/node_modules/
+__pycache__/
+*.pyc
+.tmp/
+.dsh-e2e/
+.npm-cache*/
+*.log
+sidecar/.data/
+
+# sandbox temp artifacts
+probe-*/
+.tmp-*/
+
+
+# start.sh runtime logs
+start.out.log
+start.err.log
+start.trace*.log
+
+
+# start.sh standalone runtime data
+.dsh/
+

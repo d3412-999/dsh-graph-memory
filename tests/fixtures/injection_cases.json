@@ -1,0 +1,33 @@
+{
+  "cases": [
+    {
+      "name": "c1-normal",
+      "memory_items": [
+        {"id": "ent_aaaaaaaaaaaaaaaa", "rendered": "[#ent_aaaaaaaaaaaaaaaa | w=1.0 | 10-28 更新 | 已更新] 用户偏好使用 pnpm 管理依赖", "pinned": false},
+        {"id": "ent_bbbbbbbbbbbbbbbb", "rendered": "[#ent_bbbbbbbbbbbbbbbb | w=2.0 | 10-28 更新] 用户决定用 vite 构建", "pinned": false}
+      ],
+      "day": {"day_text": "今天把构建脚本从 webpack 改成 vite。", "detail_text": "补充细节：vite 配置了两个插件。", "history_text": "历史：用户长期使用 pnpm。"},
+      "explicit": false,
+      "top1_sim": 0.5,
+      "high_weight_count": 0
+    },
+    {
+      "name": "c2-empty",
+      "memory_items": [],
+      "day": {"day_text": "", "detail_text": "", "history_text": ""},
+      "explicit": false,
+      "top1_sim": 0.0,
+      "high_weight_count": 0
+    },
+    {
+      "name": "c3-explicit-pinned",
+      "memory_items": [
+        {"id": "ent_cccccccccccccccc", "rendered": "[#ent_cccccccccccccccc | w=1.0 | 10-28 更新 | pinned] 用户 pin 的偏好", "pinned": true}
+      ],
+      "day": {"day_text": "当天原文", "detail_text": "细节", "history_text": "历史"},
+      "explicit": true,
+      "top1_sim": 0.9,
+      "high_weight_count": 2
+    }
+  ]
+}

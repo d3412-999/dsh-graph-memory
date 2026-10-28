@@ -1,0 +1,7 @@
+# dsh-graph-memory bundle patch.
+# The bundle inserts exactly one loader row; user/deployment overrides belong in
+# the profile's own cordis.patch.yml (id-targeted), not here.
+- insert:
+    - id: graph-memory
+      name: dsh-graph-memory
+      config: {}

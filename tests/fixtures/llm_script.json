@@ -1,0 +1,30 @@
+{
+  "responses": {
+    "extract": [
+      [
+        {
+          "name": "pnpm",
+          "type": "Tool",
+          "description": "用户使用 pnpm 管理依赖"
+        }
+      ],
+      [
+        {
+          "name": "构建工具",
+          "type": "Decision",
+          "description": "用户决定构建工具使用 vite"
+        }
+      ]
+    ],
+    "judge": [
+      {
+        "is_same_attribute": true,
+        "is_contradiction": true,
+        "confidence": 0.9
+      }
+    ],
+    "summarize": [
+      "脚本化摘要：用户使用 pnpm 管理依赖，构建工具使用 vite。"
+    ]
+  }
+}

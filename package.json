@@ -1,0 +1,50 @@
+{
+  "name": "dsh-graph-memory",
+  "version": "0.1.0",
+  "description": "LightRAG-based lightweight memory for DeepSeek Harness: self-managing write/recall/supersede/compress/forget with a hard 3000-token injection budget.",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/",
+    "sidecar/",
+    "panel/",
+    "config/",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test:node": "node tests/node/budgeter.test.mjs && node tests/node/config.test.mjs && node tests/node/injector.test.mjs",
+    "test:py": "py -3 -m unittest discover -s tests/python -t .",
+    "test:acceptance": "py -3 tests/acceptance/run_acceptance.py",
+    "test": "npm run build && npm run test:node && npm run test:py && npm run test:acceptance && npm run test:smoke",
+    "calibrate": "py -3 scripts/calibrate.py",
+    "smoke": "py -3 scripts/smoke_sidecar.py",
+    "e2e": "py -3 scripts/e2e_dsh.py",
+    "test:smoke": "py -3 scripts/smoke_sidecar.py",
+    "test:e2e": "py -3 scripts/e2e_dsh.py",
+    "start": "bash start.sh",
+    "stop": "bash stop.sh"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "engines": {
+      "dsh": ">=0.2.1-rc.2"
+    }
+  },
+  "peerDependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.9.3"
+  },
+  "license": "MIT"
+}

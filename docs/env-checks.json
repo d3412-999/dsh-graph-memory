@@ -1,0 +1,93 @@
+{
+  "generated_at": "2026-10-28T18:45:00+08:00",
+  "checks": [
+    {
+      "command": "py -3 -m unittest discover -s tests/python -t .",
+      "summary": "Ran 253 tests in 42.2s — OK",
+      "exit_code": 0,
+      "note": "含本验收框架 test_protocol.py(16) + test_tokens.py(12)；stderr 的 [graph-memory] 日志/DSH asyncio 慢任务提示属正常输出"
+    },
+    {
+      "command": "py -3 -m unittest tests.python.test_protocol",
+      "summary": "Ran 16 tests — OK（含 1 条契约缺口软断言：参数非法错误码实测 -32603，契约期望 -32602）",
+      "exit_code": 0,
+      "note": "黑盒 JSON-RPC：§3.1 方法结构/错误码/通知/非法 JSON/shutdown/scripted 模式"
+    },
+    {
+      "command": "py -3 -m unittest tests.python.test_tokens",
+      "summary": "Ran 12 tests — OK",
+      "exit_code": 0,
+      "note": "token 公式与 base/TS 三方一致 + 预算装配 1024/1536/1792/2048 + 硬顶 3000 + config 默认值回归"
+    },
+    {
+      "command": "node tests/node/budgeter.test.mjs",
+      "summary": "pass 12 / fail 0",
+      "exit_code": 0,
+      "note": "TS budgeter 纯函数单测（sandbox 下不能用 node --test，会 spawn 子进程 EPERM）；覆盖验收 18/22 的 TS 侧语义"
+    },
+    {
+      "command": "node tests/node/config.test.mjs",
+      "summary": "pass 7 / fail 0",
+      "exit_code": 0,
+      "note": "TS config 纯函数单测（含 config.deepMerge 深拷贝回归：默认配置不被 makeConfig 污染）"
+    },
+    {
+      "command": "node tests/node/injector.test.mjs",
+      "summary": "pass 6 / fail 0",
+      "exit_code": 0,
+      "note": "TS injector 单测：成功注入+只对 injected_ids activate（R5）、R7 抛错旁路、ensureStarted 失败旁路、检索 hang 在 300ms 预算内旁路、空结果零注入、默认 300ms 断言；覆盖验收 7/23"
+    },
+    {
+      "command": "node 三条串联（package.json test:node）",
+      "summary": "12 + 7 + 6 = 25 pass / 0 fail",
+      "exit_code": 0,
+      "note": "三条命令串联：budgeter(12) + config(7) + injector(6)"
+    },
+    {
+      "command": "node scripts/emit-tokens.mjs --samples tests/fixtures/token_samples.json",
+      "summary": "15 个固定样本 TS tokens 与 Python base.estimate_tokens 逐字节一致",
+      "exit_code": 0,
+      "note": "跨语言 token 计量一致性（CONTRACT §2.2），由 tests.python.test_tokens 断言"
+    },
+    {
+      "command": "node scripts/emit-injection.mjs --input tests/fixtures/injection_cases.json",
+      "summary": "3 个装配用例 memory/day/detail/history 分量 TS 与 Python 镜像完全一致，总量差 <=24（system 常量文本各自实现），全部 <=3000",
+      "exit_code": 0,
+      "note": "TS/Python 注入预算装配交叉校验（D1/D2/D3 计量方法学依据）"
+    },
+    {
+      "command": "py -3 scripts/smoke_sidecar.py",
+      "summary": "ALL SMOKE CHECKS PASSED（ingest/retrieve/activate/day_pack/stats/tokens/update/Journal/7 天回滚）",
+      "exit_code": 0,
+      "note": "M0 冒烟：真实 sidecar 子进程（非 unittest）"
+    },
+    {
+      "command": "py -3 scripts/e2e_dsh.py",
+      "summary": "13/13 PASS（由 Lead 执行；真实 DSH headless）",
+      "exit_code": 0,
+      "note": "需要 DEEPSEEK_API_KEY（~/.dsh/.credentials.yaml），会访问真实模型 API；离线验收侧未复跑，作为真实宿主证据引用；覆盖验收 10（卸载清理/数据保留）与真实注入记录 total<=3000"
+    },
+    {
+      "command": "bash start.sh --no-build",
+      "summary": "用途说明（未在验收环境执行）",
+      "exit_code": "-",
+      "note": "用户要求的「一键启动」入口：跳过 TypeScript 构建（--no-build），以常驻模式（sidecar.idleExitSeconds=0）拉起本地 sidecar + 只读面板（默认 http://127.0.0.1:9629，端口占用自动顺延），Ctrl+C 或 ./stop.sh 优雅停止、数据与日志保留；脚本自动探测 Python（python3/python/py -3）、必要时 npm install + tsc 构建，--install-profile <profile> 可把插件 link 装进 DSH profile。配套 scripts/sidecar_ctl.py 提供 wait-ready/status/ping/call/log/stop 调试命令。该脚本依赖 Bash（Git Bash/WSL/Linux/macOS），未作为离线 unittest 用例执行，仅记录用途。"
+    }
+  ],
+  "cross_checks": [
+    "token 计量：Python base.estimate_tokens == tests/acceptance/injection_model.py 镜像 == TS lib/budgeter.js（15 个固定样本，含 CJK/ASCII/混合/emoji/CJK 标点/长串）",
+    "注入装配：Python 镜像与 TS assembleInjection 的 memory/day/detail/history 分量逐 token 一致（3 个用例：普通/空/显式+pinned），总量差异仅来自两侧 system 常量文本不同（阈值 <=24 token）",
+    "D1 稳态注入 token 波动 0.148%（<5%，排除前 50 轮冷启动，200 轮共 16 次采样）",
+    "D2 30 天 × 50 轮稳态注入 token 波动 0.00%（<5%，day15~day30 采样），history_summary.json 恰好 1 份且 history token<=200",
+    "D3 图谱 100→20001 节点注入 token 差 0.00%（<5%），top1_sim 前后均为 0.4796 且 top1 命中固定记忆",
+    "D4 压缩后当天细节补召回 10/10=100%（>=90%），summary_tokens=346（<=360）",
+    "E4 单轮处理量 17 = ceil(201×8%)，report.limit 一致；E5 prune_stuck 告警 1 条且 stuck 后不再变化；E6 user 剪枝生效而 workspace 零剪枝"
+  ],
+  "criteria_coverage_notes": [
+    "验收 3/5/6/15：由产品单测覆盖（tests/python/test_weight.py、test_extract.py、test_supersede.py 等，253 tests OK）",
+    "验收 18：由 node tests/node/budgeter.test.mjs 覆盖（动态 memory 预算 1024/1536/1792/2048），并由 test_tokens 交叉校验",
+    "验收 23：由 node tests/node/budgeter.test.mjs（空结果零注入）+ tests/node/injector.test.mjs（R7 抛错旁路 / 检索 hang 300ms 预算内旁路）+ test_protocol.test_retrieve_empty_result_zero_tokens 覆盖",
+    "验收 7：由 node tests/node/injector.test.mjs（只对 injected_ids activate）与验收 A 激活断言共同覆盖",
+    "验收 10：由真实 DSH headless E2E（scripts/e2e_dsh.py，13/13 PASS）覆盖"
+  ]
+}

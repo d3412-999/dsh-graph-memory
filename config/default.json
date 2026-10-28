@@ -1,0 +1,154 @@
+{
+  "enabled": true,
+  "sidecar": {
+    "pythonPath": null,
+    "pythonCandidates": [
+      "py -3",
+      "python3",
+      "python"
+    ],
+    "idleExitSeconds": 300,
+    "requestTimeoutMs": 4000,
+    "retrieveTimeoutMs": 300,
+    "ingestTimeoutMs": 60000,
+    "maxRestartsPer10Min": 3,
+    "panelPort": 9629,
+    "panelHost": "127.0.0.1",
+    "transport": "auto"
+  },
+  "paths": {
+    "userDataHome": null,
+    "workspaceDataHome": null
+  },
+  "graph": {
+    "backend": "embedded",
+    "lightragUrl": null,
+    "lightragApiKey": null,
+    "lightragTimeoutMs": 5000,
+    "embeddingDim": 384,
+    "topK": 20,
+    "searchMode": "mix",
+    "onlyNeedContext": true,
+    "minSimNew": 0.62,
+    "dedupeSim": 0.95,
+    "recentNeighborK": 5
+  },
+  "llm": {
+    "mode": "host",
+    "timeoutMs": 60000,
+    "offlineModel": "graph-memory-offline",
+    "baseUrl": null,
+    "apiKeyEnv": "GRAPH_MEMORY_LLM_API_KEY",
+    "model": null,
+    "extractMaxTokens": 1024,
+    "summaryMaxTokens": 1024,
+    "compressMaxTokens": 512,
+    "mergeMaxTokens": 512
+  },
+  "injection": {
+    "totalHardTokens": 3000,
+    "systemMaxTokens": 128,
+    "memoryMaxTokens": 2048,
+    "memoryDefaultTokens": 1024,
+    "memoryHighSimTokens": 1536,
+    "memoryBoostTokens": 1792,
+    "memoryExplicitTokens": 2048,
+    "highSimThreshold": 0.8,
+    "highWeightThreshold": 5.0,
+    "dayMaxTokens": 1024,
+    "dayTextMaxTokens": 512,
+    "detailMaxTokens": 312,
+    "historyMaxTokens": 200,
+    "workspaceWeightMultiplier": 1.2,
+    "recentUpdateDays": 7
+  },
+  "weight": {
+    "decayHalfLifeSeconds": 604800,
+    "maxWeight": 10.0,
+    "baseActivationGain": 0.5,
+    "pinnedBoost": 1.0,
+    "toolBoost": 1.0,
+    "workspaceHitBoost": 0.2,
+    "pinnedScoreMultiplier": 1.5,
+    "newProtectSeconds": 259200,
+    "supersedeProtectSeconds": 604800,
+    "pinWeight": 2.0,
+    "defaultWeight": 1.0
+  },
+  "ingest": {
+    "retries": 2,
+    "retryBackoffMs": [
+      200,
+      800
+    ],
+    "minTextLength": 8,
+    "maxNoiseTextLength": 30,
+    "maxTurnChars": 12000,
+    "toolSummaryChars": 120,
+    "asyncIngest": true,
+    "flushOnTurnEndMs": 2500
+  },
+  "supersede": {
+    "minSim": 0.62,
+    "maxSim": 0.95,
+    "confidenceThreshold": 0.7,
+    "negationConfidenceThreshold": 0.6,
+    "sweepDays": 30
+  },
+  "day": {
+    "rawTokenLimit": 512,
+    "summaryMaxTokens": 360,
+    "summaryLagRatio": 0.7,
+    "detailTopK": 3,
+    "keepRecentTurns": 2,
+    "compressMinIntervalSeconds": 1800,
+    "compressMinTurns": 20
+  },
+  "prune": {
+    "watermarks": {
+      "workspace": {
+        "high": 20000,
+        "low": 16000,
+        "hard": 50000
+      },
+      "user": {
+        "high": 5000,
+        "low": 4000,
+        "hard": 12000
+      }
+    },
+    "compressWeightThreshold": 0.6,
+    "archiveWeightThreshold": 0.3,
+    "archiveMinAgeSeconds": 259200,
+    "coldRetentionSeconds": 2592000,
+    "compressDescriptionRatio": 0.4,
+    "mergeSimThreshold": 0.9,
+    "maxFractionPerRound": 0.08,
+    "maxStuckRounds": 3,
+    "dryRunDefault": true,
+    "hysteresisLowRatio": 0.8,
+    "hardRatio": 2.5,
+    "adaptive": {
+      "enabled": true,
+      "p95HighMs": 150,
+      "p95LowMs": 50,
+      "highShrinkRatio": 0.8,
+      "highGrowRatio": 1.2,
+      "minHigh": 2000,
+      "maxHighFactor": 3
+    }
+  },
+  "journal": {
+    "retentionDays": 7,
+    "pruneReportRetentionDays": 7,
+    "maxDeadLetters": 500
+  },
+  "panel": {
+    "enabled": true,
+    "port": 9629,
+    "host": "127.0.0.1"
+  },
+  "logging": {
+    "level": "info"
+  }
+}

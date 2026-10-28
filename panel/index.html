@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DSH Graph Memory · 本地面板</title>
+<link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" aria-hidden="true">◆</span>
+    <div class="brand-text">
+      <h1>DSH Graph Memory · 面板</h1>
+      <p class="sub">本地回环只读展示 + 受控操作 <span class="sep">·</span> 127.0.0.1:9629 <span class="sep">·</span> 数据不离开本机</p>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="scope-switch" role="group" aria-label="scope 切换">
+      <button type="button" class="scope-btn is-active" data-scope="workspace" aria-pressed="true">workspace <span class="scope-sub">项目知识</span></button>
+      <button type="button" class="scope-btn" data-scope="user" aria-pressed="false">user <span class="scope-sub">用户偏好</span></button>
+    </div>
+    <span class="chip chip-muted" id="conn-chip" title="面板 API 连接状态">连接中…</span>
+    <span class="refresh-note" id="refresh-note">等待首次刷新…</span>
+  </div>
+</header>
+
+<main id="main">
+  <!-- ============================ 1. 硬预算仪表盘 ============================ -->
+  <section class="card budget-card" aria-labelledby="budget-title">
+    <div class="card-head">
+      <h2 id="budget-title">硬预算仪表盘 <span class="en">Injection Budget</span></h2>
+      <span class="hint" id="budget-meta">尚无注入记录</span>
+    </div>
+    <div class="budget-top">
+      <div class="budget-total">
+        <span class="budget-total-num" id="budget-total">0</span>
+        <span class="budget-total-unit">/ <span id="budget-cap">3000</span> tokens</span>
+        <span class="budget-pct" id="budget-pct">0%</span>
+      </div>
+      <p class="budget-note">
+        注入总量硬顶 <strong>3000 tokens</strong>，不随使用时长 / 轮数 / 图谱规模增长。
+        <span class="en">（CONTRACT §2.2 · R1）</span>
+      </p>
+    </div>
+    <div class="stack-bar is-empty" id="budget-bar" role="img" aria-label="最近一次注入的 token 占用分布"></div>
+    <ul class="budget-legend" id="budget-legend"></ul>
+    <div class="scope-stats" id="scope-stats"></div>
+    <div class="degraded" id="budget-error" hidden></div>
+  </section>
+
+  <div class="grid">
+    <!-- ============================ 2. 图谱可视化 ============================ -->
+    <section class="card graph-card" aria-labelledby="graph-title">
+      <div class="card-head">
+        <h2 id="graph-title">图谱 <span class="en">Graph</span></h2>
+        <div class="card-tools">
+          <span class="hint" id="graph-counts">—</span>
+        </div>
+      </div>
+      <div class="graph-wrap" id="graph-wrap">
+        <svg id="graph-svg" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid meet" role="img" aria-label="实体关系图"></svg>
+        <div class="graph-tooltip" id="graph-tooltip" hidden></div>
+        <div class="empty-overlay" id="graph-empty" hidden>当前 scope 暂无实体（等待注入）</div>
+      </div>
+      <div class="graph-foot">
+        <div class="graph-legend" aria-label="图例">
+          <span class="legend-item"><i class="dot s-active"></i>active</span>
+          <span class="legend-item"><i class="dot s-compressed"></i>compressed</span>
+          <span class="legend-item"><i class="dot s-archived"></i>archived</span>
+          <span class="legend-item"><i class="dot s-pending"></i>pending_forget</span>
+          <span class="legend-item"><i class="dot s-pinned"></i>pinned</span>
+        </div>
+        <p class="hint" id="graph-note">节点大小 ∝ 权重 w；颜色按 status；金色描边 = pinned；hover 看描述，点击查看详情。</p>
+      </div>
+    </section>
+
+    <!-- ============================ 4. 节点详情 + 权重曲线 ============================ -->
+    <section class="card detail-card" aria-labelledby="detail-title">
+      <div class="card-head">
+        <h2 id="detail-title">节点详情 <span class="en">Detail</span></h2>
+        <button type="button" class="link-btn" id="detail-clear" hidden>清除选择</button>
+      </div>
+      <div class="detail-body" id="detail-body">
+        <p class="placeholder">在左侧图谱或记忆列表中点击一个节点。</p>
+      </div>
+      <div class="curve-block" id="curve-block" hidden>
+        <div class="curve-head">
+          <h3>权重衰减曲线 <span class="en">Weight Decay</span></h3>
+          <span class="curve-current mono" id="curve-current"></span>
+        </div>
+        <canvas id="weight-canvas" width="360" height="190" aria-label="未来 30 天权重衰减预测曲线"></canvas>
+        <p class="hint">w(t)=min(10, w·2^(−Δt/7d))，未来 30 天预测；虚线为压缩阈值 0.6 / 归档阈值 0.3（§2.6）。</p>
+      </div>
+    </section>
+
+    <!-- ============================ 3. 记忆列表 / 语义搜索 ============================ -->
+    <section class="card memory-card" aria-labelledby="memory-title">
+      <div class="card-head">
+        <h2 id="memory-title">记忆列表 / 语义搜索 <span class="en">Memory</span></h2>
+        <span class="hint" id="memory-count">—</span>
+      </div>
+      <form class="search-form" id="search-form" autocomplete="off">
+        <input type="search" id="search-input" placeholder="输入自然语言查询，例如：用户偏好什么包管理器？">
+        <button type="submit" class="primary" id="search-btn">搜索</button>
+        <button type="button" class="ghost" id="search-clear" hidden>清除</button>
+      </form>
+      <div class="search-meta" id="search-meta"></div>
+      <ol class="memory-list" id="memory-list"></ol>
+      <div class="degraded" id="memory-error" hidden></div>
+    </section>
+
+    <!-- ============================ 5. 变更历史 ============================ -->
+    <section class="card journal-card" aria-labelledby="journal-title">
+      <div class="card-head">
+        <h2 id="journal-title">变更历史 / Journal <span class="en">Changes</span></h2>
+        <span class="hint" id="journal-count">—</span>
+      </div>
+      <form class="filter-form" id="journal-filter-form" autocomplete="off">
+        <input type="search" id="journal-filter" placeholder="按 target_id 过滤，例如 ent_ab12…">
+        <button type="submit">筛选</button>
+        <button type="button" class="ghost" id="journal-filter-clear">全部</button>
+      </form>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>时间</th><th>kind</th><th>target</th><th>before → after</th><th>回滚</th></tr>
+          </thead>
+          <tbody id="journal-body"></tbody>
+        </table>
+      </div>
+      <div class="degraded" id="journal-error" hidden></div>
+    </section>
+
+    <!-- ============================ 6. 剪枝日志 ============================ -->
+    <section class="card prune-card" aria-labelledby="prune-title">
+      <div class="card-head">
+        <h2 id="prune-title">剪枝日志 <span class="en">Prune</span></h2>
+        <span class="hint" id="prune-count">—</span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>时间</th><th>kind</th><th>轮次</th><th>动作 / 报告摘要</th></tr>
+          </thead>
+          <tbody id="prune-body"></tbody>
+        </table>
+      </div>
+      <div class="degraded" id="prune-error" hidden></div>
+    </section>
+
+    <!-- ============================ 7. 死信 / 告警 ============================ -->
+    <section class="card dead-card" aria-labelledby="dead-title">
+      <div class="card-head">
+        <h2 id="dead-title">死信 / 告警 <span class="en">Dead letters &amp; alarms</span></h2>
+        <span class="hint" id="dead-count">—</span>
+      </div>
+      <h3 class="subhead">死信 <span class="en">dead_letters</span></h3>
+      <ul class="dead-list" id="dead-list"></ul>
+      <h3 class="subhead">告警 <span class="en">alarms</span></h3>
+      <ul class="dead-list" id="alarm-list"></ul>
+      <div class="degraded" id="dead-error" hidden></div>
+    </section>
+
+    <!-- ============================ 运行状态 ============================ -->
+    <section class="card status-card" aria-labelledby="status-title">
+      <div class="card-head">
+        <h2 id="status-title">运行状态 <span class="en">Status</span></h2>
+      </div>
+      <dl class="kv" id="status-list"></dl>
+      <div class="status-errors" id="status-errors"></div>
+    </section>
+  </div>
+</main>
+
+<footer class="footer">
+  <span>dsh-graph-memory 本地面板 v0.1.0</span>
+  <span class="sep">·</span>
+  <span>只读展示 + 受控操作（pin / unpin / forget / set_weight / update）</span>
+  <span class="sep">·</span>
+  <span>每 5 秒自动刷新</span>
+  <span class="sep">·</span>
+  <span id="footer-scope">scope: workspace</span>
+</footer>
+
+<noscript><div class="degraded">本面板需要启用 JavaScript。</div></noscript>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="static/app.js"></script>
+</body>
+</html>

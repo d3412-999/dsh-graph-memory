@@ -1,0 +1,65 @@
+{
+  "p95_budget_ms": 150.0,
+  "sizes": [
+    {
+      "size": 1000,
+      "p95_ms": 4.367,
+      "p95_cold_ms": 3.561,
+      "hits": 100,
+      "samples": 100,
+      "build_seconds": 0.1,
+      "under_budget": true
+    },
+    {
+      "size": 5000,
+      "p95_ms": 23.792,
+      "p95_cold_ms": 13.945,
+      "hits": 100,
+      "samples": 100,
+      "build_seconds": 0.45,
+      "under_budget": true
+    },
+    {
+      "size": 10000,
+      "p95_ms": 44.222,
+      "p95_cold_ms": 44.874,
+      "hits": 100,
+      "samples": 100,
+      "build_seconds": 2.82,
+      "under_budget": true
+    },
+    {
+      "size": 20000,
+      "p95_ms": 34.654,
+      "p95_cold_ms": 34.045,
+      "hits": 100,
+      "samples": 100,
+      "build_seconds": 5.67,
+      "under_budget": true
+    },
+    {
+      "size": 50000,
+      "p95_ms": 33.693,
+      "p95_cold_ms": 30.509,
+      "hits": 100,
+      "samples": 100,
+      "build_seconds": 12.09,
+      "under_budget": true
+    }
+  ],
+  "max_passing_size": 50000,
+  "watermarks": {
+    "workspace": {
+      "high": 35000,
+      "low": 28000,
+      "hard": 87500
+    },
+    "user": {
+      "high": 5000,
+      "low": 4000,
+      "hard": 12500
+    }
+  },
+  "generated_at": 1793182134.9217088,
+  "note": "high = 满足 P95<150ms 的最大档 × 0.7；low=high×0.8；hard=high×2.5；夹逼下限 2000。"
+}
